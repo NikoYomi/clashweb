@@ -1,0 +1,52 @@
+name: Build and Push Docker Image
+
+on:
+  push:
+    branches: [ "main" ]
+    # 当你打 tag (如 v1.0) 时也会触发
+    tags: [ 'v*.*.*' ]
+  workflow_dispatch: # 允许手动触发
+
+env:
+  # 修改为你的 Docker Hub 用户名/镜像名
+  IMAGE_NAME: nikoyomi
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'format(\'refs/heads/{0}\', \'main\')' }}
+            type=semver,pattern={{version}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./app  # 注意：你的 Dockerfile 在 app 目录下
+          file: ./app/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # 开启多架构构建 (支持 AMD64 和 ARM64/Oracle)
+          platforms: linux/amd64,linux/arm64

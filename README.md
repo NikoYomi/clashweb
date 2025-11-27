@@ -48,7 +48,7 @@ version: '3.8'
 services:
   # ClashWeb 管理面板
   clashweb:
-    image: nikocatooo/clashweb:latest
+    image: nikoyomi/clashweb:latest
     container_name: clashweb
     restart: always
     ports:

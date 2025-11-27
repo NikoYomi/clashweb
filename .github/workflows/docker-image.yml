@@ -8,8 +8,9 @@ on:
   workflow_dispatch: # 允许手动触发
 
 env:
-  # 修改为你的 Docker Hub 用户名/镜像名
-  IMAGE_NAME: nikoyomi
+  # 这里会自动读取你设置的 Secret: nikoyomi
+  # 最终镜像名会是: nikoyomi/clashweb
+  IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/clashweb
 
 jobs:
   build:
@@ -36,14 +37,16 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.IMAGE_NAME }}
+          # --- 修复点在这里 ---
+          # 我们简化了判定逻辑，修复了之前的语法错误
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'format(\'refs/heads/{0}\', \'main\')' }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=semver,pattern={{version}}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: ./app  # 注意：你的 Dockerfile 在 app 目录下
+          context: ./app  # 你的 Dockerfile 在 app 目录下
           file: ./app/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}

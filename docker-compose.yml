@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  clashweb:
+    build: ./app
+    container_name: clash_web
+    restart: always
+    ports:
+      - "9086:80"
+    volumes:
+      - ./data:/data  # 映射clash配置文件目录
+      - /var/run/docker.sock:/var/run/docker.sock  # 和重启容器有关
+    environment:
+      - TZ=Asia/Shanghai
+    network_mode: bridge

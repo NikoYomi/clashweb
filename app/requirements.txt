@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+httpx
+pyyaml
+pydantic
+python-multipart
+docker
+apscheduler
+pytz
+aiofiles

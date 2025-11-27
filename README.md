@@ -27,8 +27,8 @@
 
 ## 🖼️ 预览截图
 
-<img width="1636" height="929" alt="image" src="https://github.com/user-attachments/assets/90240aaf-0715-488a-89cf-c9c8b1a2ea09" />
-<img width="1535" height="925" alt="image" src="https://github.com/user-attachments/assets/4d478f9c-542e-4b5c-966f-4046a782dfe3" />
+<img width="1567" height="908" alt="image" src="https://github.com/user-attachments/assets/23fd0fb5-f4fa-4bed-9fff-98b6d0fb1cda" />
+
 
 
 

@@ -498,7 +498,9 @@
                     </div>
                 </div>
 
-            </transition> <div v-if="(isGroupEditMode && selectedGroups.length > 0) || (isRuleEditMode && selectedRules.length > 0)"
+            </transition> 
+            
+            <div v-if="(isGroupEditMode && selectedGroups.length > 0) || (isRuleEditMode && selectedRules.length > 0)"
                 class="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-red-600 text-white px-8 py-4 rounded-full shadow-2xl z-50 flex items-center gap-4">
                 <span class="font-bold">已选择 {{ isGroupEditMode ? selectedGroups.length : selectedRules.length }} 项</span>
                 <button @click="initiateDelete"

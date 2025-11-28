@@ -1,58 +1,42 @@
-name: Build and Push Docker Image
+name: Docker Image CI
 
 on:
   push:
     branches: [ "main" ]
-    tags: [ 'v0.1.1' ]
   workflow_dispatch:
 
 env:
-  IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/clashweb
+
+  DOCKER_USERNAME: nikoyomi
+  IMAGE_NAME: clashweb-fix
+  TAG: latest
 
 jobs:
-  build:
+  build-and-push:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # 登录 Docker Hub
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
+          username: ${{ env.DOCKER_USERNAME }}
+          # TODO: 确保你已经在 GitHub Secrets 中配置了 DOCKER_PASSWORD
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.IMAGE_NAME }}
-          标签: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-            type=semver,pattern={{version}}
-
-      - name: Debug file structure
-        run: |
-          echo "Current directory structure:"
-          find . -type f -name "*.py" -o -name "*.html" -o -name "*.js" -o -name "*.css" | head -20
-          echo "Static directory contents:"
-          ls -la static/ 2>/dev/null || echo "No static directory found"
-
-      - name: Build and push Docker image
+      - name: Build and Push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: .  # 改为根目录作为构建上下文
-          file: ./Dockerfile  # Dockerfile 在根目录
+          # --- 核心修复：指定构建上下文为 ./app ---
+          # 这样 Docker 就能在 app/ 目录下找到 Dockerfile 和其他文件
+          context: ./app
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          platforms: linux/amd64,linux/arm64
+          标签: ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}
+          # 启用缓存，加速后续构建
           cache-from: type=gha
           cache-to: type=gha,mode=max

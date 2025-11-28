@@ -888,13 +888,13 @@
                 showLoading('还原中...')
                 const formData = new FormData(); formData.append('file', file); formData.append('restore_sub', restoreOpts.restoreSub);
                 try {
-                    const res = await fetch('/api/restore', { method: 'POST', body: formData }); if (!res.ok) throw new Error("还原失败");
+                    const res = await fetch('/api/restore'， { method: 'POST'， body: formData }); if (!res。ok) throw new 错误("还原失败");
                     await loadData();
                     if (configData.sub_url) {
-                        showToast('正在应用配置...'); await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: configData.sub_url }) }); await loadData();
+                        showToast('正在应用配置...'); await fetch('/api/download'， { method: 'POST'， headers: { 'Content-Type': 'application/json' }， body: JSON。stringify({ url: configData。sub_url }) }); await loadData();
                     }
-                    showToast('还原成功'); showSettings。value = false;
-                } catch (e) { showToast(e.message, "error") } finally { hideLoading() }
+                    showToast('还原成功'); showSettings.value = false;
+                } catch (e) { showToast(e。message， "error") } finally { hideLoading() }
             }
 
             const downloadConfig = async (mode = 'downloading') => {
@@ -903,55 +903,55 @@
                 showLoading(mode === 'switching' ? '切换中...' : (mode === 'refreshing' ? '刷新中...' : '更新中...'))
                 try {
                     await saveData();
-                    const res = await fetch('/api/download'， { method: 'POST'， headers: { 'Content-Type': 'application/json' }， body: JSON。stringify({ url: form。sub_url }) })
+                    const res = await fetch('/api/download'， { method: 'POST'， headers: { 'Content-Type': 'application/json' }， body: JSON。stringify({ url: form.sub_url }) })
                     if (!res.ok) { const d = await res.json(); throw new Error(d.detail); }
                     await loadData(); showToast("订阅更新成功"); form.sub_url = ''; showInputCard.value = false; showSettings.value = false;
                 } catch (e) { showToast(e.message, "error") } finally { hideLoading() }
             }
 
             const restartContainers = async () => {
-                if (!configData.restart_containers) { showSettings.value = true; settingsTab.value = 'basic'; return showToast("请配置容器名称", "error"); }
+                if (!configData.restart_containers) { showSettings。value = true; settingsTab。value = 'basic'; return showToast("请配置容器名称"， "error"); }
                 showLoading('重启容器...')
                 try {
-                    const res = await fetch('/api/restart_containers'， { method: 'POST' }); const data = await res。json();
-                    if (!res。ok) throw new 错误(data。detail || "重启失败"); showToast(data。msg)
+                    const res = await fetch('/api/restart_containers', { method: 'POST' }); const data = await res.json();
+                    if (!res.ok) throw new Error(data.detail || "重启失败"); showToast(data.msg)
                 } catch (e) { showToast(e.message, "error") } finally { hideLoading() }
             }
 
-            const saveSettings = async () => { showLoading('保存...'); try { await saveData(); showSettings.value = false; showToast('设置已保存'); } catch (e) { showToast("保存失败"， "error"); } finally { hideLoading(); } }
-            const applyHistory = async (url) => { if (url === configData。sub_url) return showToast("当前正在使用"); form。sub_url = url; await downloadConfig('switching'); }
-            const refreshSubscription = async () => { if (!configData.sub_url) return showToast("无订阅"， "error"); form.sub_url = configData.sub_url; await downloadConfig('refreshing'); }
-            const openSettings = () => { showSettings。value = true }
-            const toggleTheme = () => { isDark。value = !isDark。value; document。documentElement。classList。toggle('dark'， isDark.value) }
+            const saveSettings = async () => { showLoading('保存...'); try { await saveData(); showSettings.value = false; showToast('设置已保存'); } catch (e) { showToast("保存失败", "error"); } finally { hideLoading(); } }
+            const applyHistory = async (url) => { if (url === configData.sub_url) return showToast("当前正在使用"); form.sub_url = url; await downloadConfig('switching'); }
+            const refreshSubscription = async () => { if (!configData。sub_url) return showToast("无订阅"， "error"); form.sub_url = configData。sub_url; await downloadConfig('refreshing'); }
+            const openSettings = () => { showSettings.value = true }
+            const toggleTheme = () => { isDark.value = !isDark.value; document.documentElement.classList.toggle('dark', isDark.value) }
             
             const toggleGroupEdit = () => { isGroupEditMode.value = !isGroupEditMode.value; selectedGroups.value = [] }
             const isGroupSelected = (n) => selectedGroups.value.includes(n)
             const toggleGroupSelection = (n) => { if (isGroupEditMode.value) isGroupSelected(n) ? selectedGroups.value.splice(selectedGroups.value.indexOf(n), 1) : selectedGroups.value.push(n) }
             
-            const toggleRuleEdit = () => { isRuleEditMode。value = !isRuleEditMode。value; selectedRules。value = [] }
-            const isRuleSelected = (r) => selectedRules.value.includes(r)
-            const toggleRuleSelection = (r) => { if (isRuleEditMode.value) isRuleSelected(r) ? selectedRules.value.splice(selectedRules.value.indexOf(r), 1) : selectedRules.value.push(r) }
+            const toggleRuleEdit = () => { isRuleEditMode.value = !isRuleEditMode.value; selectedRules.value = [] }
+            const isRuleSelected = (r) => selectedRules。value。includes(r)
+            const toggleRuleSelection = (r) => { if (isRuleEditMode.value) isRuleSelected(r) ? selectedRules。value。splice(selectedRules。value。indexOf(r)， 1) : selectedRules.value.push(r) }
             
             const filteredRules = computed(() => {
-                if (!analysis。rules) return []
-                const key = searchKey。value。toLowerCase()
+                if (!analysis.rules) return []
+                const key = searchKey.value.toLowerCase()
                 if (!key) return analysis.rules.slice(0, 100)
-                return analysis.rules.filter(r => r.toLowerCase().includes(key)).slice(0, 100)
+                return analysis。rules。filter(r => r。toLowerCase()。includes(key))。slice(0， 100)
             })
 
-            onMounted(() => { document.documentElement.classList.add('dark'); loadData(); })
+            onMounted(() => { document.documentElement。classList。add('dark'); loadData(); })
 
             return {
                 isDark, toggleTheme, globalLoading, loadingText, showSettings, openSettings, currentTab, tabs,
-                form, configData， analysis， icons， toast， showToast， confirmModal，
-                groupInput, insertIcon， addNewGroup， isGroupEditMode， selectedGroups， toggleGroupEdit， isGroupSelected， toggleGroupSelection，
-                ruleInput, addNewRules， isRuleEditMode， selectedRules， toggleRuleEdit， isRuleSelected， toggleRuleSelection， ruleSearch， filteredRules，
-                initiateDelete, performDelete， saveSettings， downloadConfig， restoreConfig， restartContainers， applyHistory，
-                backupOpts, restoreOpts， backupUrl， logs， fetchLogs， logContainer， refreshSubscription， copyLogs，
+                form， configData, analysis, icons, toast, showToast, confirmModal，
+                groupInput， insertIcon， addNewGroup, isGroupEditMode, selectedGroups, toggleGroupEdit, isGroupSelected， toggleGroupSelection，
+                ruleInput， addNewRules， isRuleEditMode， selectedRules， toggleRuleEdit， isRuleSelected， toggleRuleSelection, ruleSearch， filteredRules，
+                initiateDelete, performDelete, saveSettings, downloadConfig, restoreConfig, restartContainers, applyHistory,
+                backupOpts, restoreOpts, backupUrl, logs, fetchLogs, logContainer, refreshSubscription, copyLogs,
                 settingsTab, showInputCard, formatBytes, formatDate, usagePercent
             }
         }
-    })。mount('#app')
+    }).mount('#app')
 </script>
 </body>
 </html>

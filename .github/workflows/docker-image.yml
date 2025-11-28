@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "main" ]
     # 当你打 tag (如 v1.0) 时也会触发
-    tags: [ 'v0.1.0' ]
+    tags: [ 'v0.1.1' ]
   workflow_dispatch: # 允许手动触发
 
 env:

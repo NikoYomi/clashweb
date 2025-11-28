@@ -665,7 +665,7 @@ async def analyze_config():
 
         groups_info = [{"name": g['name'], "type": g.get('type', 'select'), "rule_count": rule_usage.get(g['name'], 0)} for g in config.get('proxy-groups', [])]
         
-        proxies = config.get('proxies'， [])
+        proxies = config.get('proxies', [])
         region_map = {
             "hk": "香港", "hong": "香港", "香港": "香港",
             "tw": "台湾", "tai": "台湾", "台湾": "台湾",

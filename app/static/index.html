@@ -38,11 +38,12 @@
 
         /* ================ 卡片样式 (去除跳动 + 纯净暗黑背景) ================ */
         .card-bg {
-            /* 亮色模式 */
-            background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(245, 247, 255, 0.9));
+            /* [优化] 亮色模式：使用更柔和的背景色，接近苹果官网的白 */
+            background: #ffffff; /* 纯白背景 */
             border-radius: var(--card-radius);
-            border: 1px solid rgba(255, 255, 255, 0.6);
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+            border: 1px solid rgba(0, 0, 0, 0.08); /* 更浅的边框 */
+            /* [优化] 亮色模式：增加阴影深度，使其更突出 */
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
             backdrop-filter: blur(10px);
             transition: box-shadow .3s ease; /* 仅过渡阴影，不改变位置 */
         }
@@ -62,7 +63,7 @@
 
         /* [修改] 悬浮仅加深阴影，不位移 */
         .smooth-card:hover {
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15); /* 亮色模式悬浮加深 */
         }
         html.dark .smooth-card:hover {
             box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
@@ -92,8 +93,9 @@
 
         /* ================ 背景纹理 ================ */
         .bg-dot-pattern {
-            background-color: #f8fafc;
-            background-image: radial-gradient(#6366f1 0.5px, transparent 0.5px);
+            /* [优化] 亮色模式：使用更柔和的背景色和更浅的点状 */
+            background-color: #f9f9f9; /* 柔和的白色背景 */
+            background-image: radial-gradient(#d3d3d3 0.5px, transparent 0.5px);
             background-size: 24px 24px;
             background-attachment: fixed;
         }
@@ -416,7 +418,7 @@
                         <div class="grid md:grid-cols-12 gap-6">
                             <div class="md:col-span-8 flex flex-col gap-4">
                                 <div>
-                                    <label class="block text-xs text-gray-500 mb-1">输入网址/ip地址 /label>
+                                    <label class="block text-xs text-gray-500 mb-1">输入网址或ip地址/label>
                                     <textarea v-model="ruleInput.raw" rows="4"
                                         class="w-full p-3 rounded-lg bg-white/70 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 outline-none focus:ring-2 focus:ring-green-500 text-sm font-mono transition-all"
                                         placeholder="https://openai.com&#10;1.1.1.1"></textarea>
@@ -479,17 +481,7 @@
                 <div v-if="currentTab === 'logs'" key="logs" class="flex flex-col gap-4 h-[700px]">
                     <div class="flex justify-between items-center">
                         <h3 class="text-lg font-bold"><i class="fas fa-terminal text-primary"></i> 实时日志</h3>
-                        <div class="flex gap-2">
-                            <button @click="copyLogs"
-                                class="text-sm bg-gray-200 dark:bg-gray-700 px-3 py-1 rounded hover:bg-gray-300 transition-colors btn-soft">
-                                <i class="fas fa-copy"></i> 复制
-                            </button>
-                            <button @click="fetchLogs"
-                                class="text-sm bg-gray-200 dark:bg-gray-700 px-3 py-1 rounded hover:bg-gray-300 transition-colors btn-soft">
-                                <i class="fas fa-sync-alt"></i> 刷新
-                            </button>
                         </div>
-                    </div>
                     <div class="flex-1 bg-black text-green-400 font-mono text-xs md:text-sm p-4 rounded-xl overflow-y-auto border border-gray-700 shadow-inner terminal-logs custom-scrollbar"
                         ref="logContainer">
                         <div v-if="logs.length === 0" class="text-gray-500 italic">暂无日志或正在加载...</div>
@@ -562,7 +554,7 @@
                         <input v-model="configData.cron_expression" type="text"
                             class="w-full p-2 rounded bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-sm font-mono"
                             placeholder="0 4 * * *">
-                        <p class="text-xs text-gray-400 mt-1">Cron 表达式 (例: 0 4 * * * 为每天凌晨4点)</p>
+                        <p class="text-xs text-gray-400 mt-1">Cron 表达式 (例: * */4 * * * 为每4个小时更新一次)</p>
                     </div>
                 </div>
             </div>
@@ -931,7 +923,28 @@
             const applyHistory = async (url) => { if (url === configData.sub_url) return showToast("当前正在使用"); form.sub_url = url; await downloadConfig('switching'); }
             const refreshSubscription = async () => { if (!configData.sub_url) return showToast("无订阅", "error"); form.sub_url = configData.sub_url; await downloadConfig('refreshing'); }
             const openSettings = () => { showSettings.value = true }
-            const toggleTheme = () => { isDark.value = !isDark.value; document.documentElement.classList.toggle('dark', isDark.value) }
+            
+            // [主题修复/优化]
+            const loadTheme = () => {
+                const savedTheme = localStorage.getItem('theme');
+                if (savedTheme === 'light') {
+                    isDark.value = false;
+                    document.documentElement.classList.remove('dark');
+                } else if (savedTheme === 'dark') {
+                    isDark.value = true;
+                    document.documentElement.classList.add('dark');
+                } else {
+                    // 默认值
+                    isDark.value = true;
+                    document.documentElement.classList.add('dark');
+                }
+            }
+
+            const toggleTheme = () => { 
+                isDark.value = !isDark.value; 
+                document.documentElement.classList.toggle('dark', isDark.value);
+                localStorage.setItem('theme', isDark.value ? 'dark' : 'light');
+            }
             
             const toggleGroupEdit = () => { isGroupEditMode.value = !isGroupEditMode.value; selectedGroups.value = [] }
             const isGroupSelected = (n) => selectedGroups.value.includes(n)
@@ -948,7 +961,10 @@
                 return analysis.rules.filter(r => r.toLowerCase().includes(key)).slice(0, 100)
             })
 
-            onMounted(() => { document.documentElement.classList.add('dark'); loadData(); })
+            onMounted(() => { 
+                loadTheme(); // [修复] 在挂载时加载主题
+                loadData(); 
+            })
 
             return {
                 isDark, toggleTheme, globalLoading, loadingText, showSettings, openSettings, currentTab, tabs,

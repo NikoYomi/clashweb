@@ -33,10 +33,10 @@ from apscheduler.triggers.cron import CronTrigger
 DATA_PATH = "/data"
 CONFIG_JSON = os.path.join(DATA_PATH, "config.json")
 OUTPUT_YAML = os.path.join(DATA_PATH, "config.yaml")
-LOG_FILE = os.path.join(DATA_PATH, "app.log")
 DEFAULT_BACKEND = "https://api.v1.mk/sub?target=clash&url="
 
 # --- 初始化日志 ---
+LOG_FILE = os.path.join(DATA_PATH, "app.log")
 logger = logging.getLogger("ClashWeb")
 logger.setLevel(logging.INFO)
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
@@ -476,7 +476,8 @@ async def save_data(data: ConfigModel):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/backup")
-async def backup_config(include_sub: bool = False):
+# [修改] 备份逻辑：将 include_sub 改为 include_history
+async def backup_config(include_history: bool = False):
     if not os.path.exists(CONFIG_JSON): raise HTTPException(status_code=404, detail="No config found")
     try:
         # [修复] 指定 encoding='utf-8'
@@ -484,7 +485,8 @@ async def backup_config(include_sub: bool = False):
             content = await f.read()
             data = json.loads(content)
             
-        if not include_sub:
+        if not include_history:
+            # 如果不包含历史记录，则清空历史记录和当前订阅URL
             data['sub_url'] = ""
             data['sub_history'] = []
             
@@ -498,35 +500,36 @@ async def backup_config(include_sub: bool = False):
         raise HTTPException(500, detail=str(e))
 
 @app.post("/api/restore")
-async def restore_config(file: UploadFile = File(...), restore_sub: bool = Form(False)):
+# [修改] 还原逻辑：移除 restore_sub 参数，默认还原备份文件中的所有内容
+async def restore_config(file: UploadFile = File(...)):
     try:
         content = await file.read()
         backup_data = json.loads(content)
         if not isinstance(backup_data, dict): raise ValueError("Format Error")
         
         final_data = backup_data
-        if not restore_sub:
-            current_data = {}
-            if os.path.exists(CONFIG_JSON):
-                # [修复] 指定 encoding='utf-8'
-                with open(CONFIG_JSON, 'r', encoding='utf-8') as f: current_data = json.load(f)
-            final_data['sub_url'] = current_data.get('sub_url', '')
-            final_data['sub_history'] = current_data.get('sub_history', [])
         
-        if restore_sub and not final_data.get('sub_url'):
-             raise ValueError("备份文件中未包含订阅信息")
+        # 还原逻辑简化：直接写入 backup_data，历史订阅信息（sub_url/sub_history）有则还原
+        
+        current_data = {}
+        # [修复] 还原时读取当前数据，以保留配置完整性（若备份文件缺少某些配置）
+        if os.path.exists(CONFIG_JSON):
+            with open(CONFIG_JSON, 'r', encoding='utf-8') as f: current_data = json.load(f)
+        
+        # 使用 ConfigModel 保证结构，并以备份数据为主，当前数据为辅（仅用于填充备份中没有的配置）
+        merged_data = ConfigModel(**current_data).dict()
+        merged_data.update(final_data)
 
         # [修复] 指定 encoding='utf-8'
         async with aiofiles.open(CONFIG_JSON, "w", encoding='utf-8') as f:
-            await f.write(json.dumps(final_data, indent=2))
+            await f.write(json.dumps(merged_data, indent=2))
         
         refresh_scheduler()
         
         summary = {
-            "groups": len(final_data.get('add_groups', [])),
-            "rules": len(final_data.get('add_rules', [])),
-            "sub_status": "已覆盖" if restore_sub else "未变更",
-            "has_sub": bool(final_data.get('sub_url'))
+            "groups": len(merged_data.get('add_groups', [])),
+            "rules": len(merged_data.get('add_rules', [])),
+            "has_sub": bool(merged_data.get('sub_url'))
         }
         return {"status": "success", "summary": summary}
     except Exception as e:
@@ -575,6 +578,9 @@ async def download_config(req: DownloadRequest):
             data = json.loads(content)
     except: data = {}
     
+    # 获取当前活动订阅 URL 的历史信息 (用于失败时的名称/信息回退)
+    existing_history_entry = next((h for h in data.get('sub_history', []) if h.get('url') == req.url), None)
+
     # 临时更新 URL 以供 process 逻辑使用
     data['sub_url'] = req.url
     
@@ -584,10 +590,13 @@ async def download_config(req: DownloadRequest):
         fetched_info = await internal_process_subscription(req.url, data)
         
         # --- 核心更新逻辑：更新历史记录 ---
-        airport_name = "未知机场"
-        traffic_info = {}
+        
+        # [修改] 默认使用上次成功的名称和信息 (如果存在)，否则使用默认值
+        airport_name = existing_history_entry.get("name", "未知机场") if existing_history_entry else "未知机场"
+        traffic_info = existing_history_entry.get("info", {}) if existing_history_entry else {}
         
         if fetched_info:
+            # 如果成功获取到新信息，则覆盖
             airport_name = fetched_info.get("name", "未知机场")
             traffic_info = {
                 "upload": fetched_info.get("upload", 0),

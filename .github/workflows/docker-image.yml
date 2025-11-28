@@ -7,7 +7,7 @@ on:
 
 env:
   # TODO: 将 YOUR_DOCKERHUB_USERNAME 替换为你的 Docker Hub 用户名
-  DOCKER_USERNAME: YOUR_DOCKERHUB_USERNAME
+  DOCKER_USERNAME: nikoyomi
   IMAGE_NAME: clashweb-fix
   TAG: latest
 

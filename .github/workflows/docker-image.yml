@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
 
 env:
-
-  DOCKER_USERNAME: nikoyomi
+  # TODO: 将 YOUR_DOCKERHUB_USERNAME 替换为你的 Docker Hub 用户名
+  DOCKER_USERNAME: YOUR_DOCKERHUB_USERNAME
   IMAGE_NAME: clashweb-fix
   TAG: latest
 
@@ -36,7 +36,7 @@ jobs:
           # 这样 Docker 就能在 app/ 目录下找到 Dockerfile 和其他文件
           context: ./app
           push: true
-          标签: ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}
+          tags: ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}
           # 启用缓存，加速后续构建
           cache-from: type=gha
           cache-to: type=gha,mode=max

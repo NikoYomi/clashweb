@@ -50,6 +50,7 @@ if not os.path.exists(DATA_PATH):
         os.makedirs(DATA_PATH)
     except:
         pass
+# [修复] 日志文件使用 utf-8 编码
 file_handler = logging.FileHandler(LOG_FILE, encoding='utf-8')
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
@@ -110,14 +111,17 @@ def init_data():
         except: pass
     
     if not os.path.exists(CONFIG_JSON) or os.path.isdir(CONFIG_JSON):
-        with open(CONFIG_JSON, 'w') as f: json.dump(ConfigModel().dict(), f)
+        # [修复] 指定 encoding='utf-8'
+        with open(CONFIG_JSON, 'w', encoding='utf-8') as f: json.dump(ConfigModel().dict(), f)
 
     if not os.path.exists(OUTPUT_YAML) or os.path.isdir(OUTPUT_YAML):
-        with open(OUTPUT_YAML, 'w') as f: f.write("")
+        # [修复] 指定 encoding='utf-8'
+        with open(OUTPUT_YAML, 'w', encoding='utf-8') as f: f.write("")
 
 def refresh_scheduler():
     try:
-        with open(CONFIG_JSON, 'r') as f:
+        # [修复] 指定 encoding='utf-8'
+        with open(CONFIG_JSON, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
         job_id = 'auto_update_job'
@@ -136,10 +140,12 @@ def refresh_scheduler():
             logger.info("⛔️ 定时任务已关闭")
     except Exception as e:
         logger.error(f"Scheduler refresh failed: {e}")
+
 async def scheduled_update_task():
     logger.info(">>> ⏳ 开始执行定时更新任务 <<<")
     try:
-        async with aiofiles.open(CONFIG_JSON, 'r') as f:
+        # [修复] 指定 encoding='utf-8'
+        async with aiofiles.open(CONFIG_JSON, 'r', encoding='utf-8') as f:
             content = await f.read()
             data = json.loads(content)
         
@@ -151,8 +157,8 @@ async def scheduled_update_task():
         # 执行更新逻辑
         await internal_process_subscription(url, data)
         
-        # 保存 user_info 更新
-        async with aiofiles.open(CONFIG_JSON, 'w') as f:
+        # 保存 user_info 更新 [修复] 指定 encoding='utf-8'
+        async with aiofiles.open(CONFIG_JSON, 'w', encoding='utf-8') as f:
             await f.write(json.dumps(data, indent=2))
 
         logger.info("✅ 定时更新任务完成")
@@ -174,7 +180,6 @@ async def scheduled_update_task():
                     
     except Exception as e:
         logger.error(f"❌ 定时任务执行出错: {e}")
-
 # --- 逻辑分离：任务1 获取原始流量信息和机场名称 ---
 async def fetch_original_userinfo(url: str) -> Optional[dict]:
     """直接请求原始订阅链接，提取 Header 中的流量信息、profile-title 和官网地址"""
@@ -309,6 +314,7 @@ async def download_and_convert_config(url: str, data: dict) -> bool:
         raise Exception(f"配置处理失败: {e}")
 
     # 写入文件
+    # [修复] 指定 encoding='utf-8'
     async with aiofiles.open(OUTPUT_YAML, 'w', encoding='utf-8') as f:
         await f.write(output_str)
     
@@ -414,6 +420,7 @@ def apply_patch(config: dict, patch: dict) -> dict:
                 config.setdefault('rules', []).insert(0, clean_r)
              
     return config
+
 @app.on_event("startup")
 async def startup_event():
     init_data()
@@ -426,18 +433,19 @@ async def get_logs(lines: int = 100):
     if not os.path.exists(LOG_FILE):
         return {"logs": []}
     try:
+        # [修复] 指定 encoding='utf-8'
         async with aiofiles.open(LOG_FILE, 'r', encoding='utf-8') as f:
             content = await f.read()
             all_lines = content.splitlines()
             return {"logs": all_lines[-lines:]}
     except Exception as e:
         return {"logs": [f"Error reading logs: {str(e)}"]}
-
 @app.get("/api/data")
 async def get_data():
     try:
         if os.path.exists(CONFIG_JSON) and os.path.getsize(CONFIG_JSON) > 0:
-            async with aiofiles.open(CONFIG_JSON, 'r') as f:
+            # [修复] 指定 encoding='utf-8'
+            async with aiofiles.open(CONFIG_JSON, 'r', encoding='utf-8') as f:
                 content = await f.read()
                 data = json.loads(content)
                 # 确保 user_info 结构完整
@@ -457,7 +465,8 @@ async def get_data():
 async def save_data(data: ConfigModel):
     try:
         payload = data.dict(exclude_none=True)
-        async with aiofiles.open(CONFIG_JSON, 'w') as f:
+        # [修复] 指定 encoding='utf-8'
+        async with aiofiles.open(CONFIG_JSON, 'w', encoding='utf-8') as f:
             await f.write(json.dumps(payload, indent=2))
         
         refresh_scheduler()
@@ -470,7 +479,8 @@ async def save_data(data: ConfigModel):
 async def backup_config(include_sub: bool = False):
     if not os.path.exists(CONFIG_JSON): raise HTTPException(status_code=404, detail="No config found")
     try:
-        async with aiofiles.open(CONFIG_JSON, 'r') as f:
+        # [修复] 指定 encoding='utf-8'
+        async with aiofiles.open(CONFIG_JSON, 'r', encoding='utf-8') as f:
             content = await f.read()
             data = json.loads(content)
             
@@ -479,7 +489,8 @@ async def backup_config(include_sub: bool = False):
             data['sub_history'] = []
             
         temp_path = "/tmp/clashweb_backup.json"
-        async with aiofiles.open(temp_path, 'w') as f:
+        # [修复] 指定 encoding='utf-8'
+        async with aiofiles.open(temp_path, 'w', encoding='utf-8') as f:
             await f.write(json.dumps(data, indent=2))
             
         return FileResponse(temp_path, filename="clashweb_backup.json", media_type="application/json")
@@ -497,14 +508,16 @@ async def restore_config(file: UploadFile = File(...), restore_sub: bool = Form(
         if not restore_sub:
             current_data = {}
             if os.path.exists(CONFIG_JSON):
-                with open(CONFIG_JSON, 'r') as f: current_data = json.load(f)
+                # [修复] 指定 encoding='utf-8'
+                with open(CONFIG_JSON, 'r', encoding='utf-8') as f: current_data = json.load(f)
             final_data['sub_url'] = current_data.get('sub_url', '')
             final_data['sub_history'] = current_data.get('sub_history', [])
         
         if restore_sub and not final_data.get('sub_url'):
              raise ValueError("备份文件中未包含订阅信息")
 
-        async with aiofiles.open(CONFIG_JSON, "w") as f:
+        # [修复] 指定 encoding='utf-8'
+        async with aiofiles.open(CONFIG_JSON, "w", encoding='utf-8') as f:
             await f.write(json.dumps(final_data, indent=2))
         
         refresh_scheduler()
@@ -523,7 +536,8 @@ async def restore_config(file: UploadFile = File(...), restore_sub: bool = Form(
 @app.post("/api/restart_containers")
 async def restart_containers():
     try:
-        async with aiofiles.open(CONFIG_JSON, 'r') as f:
+        # [修复] 指定 encoding='utf-8'
+        async with aiofiles.open(CONFIG_JSON, 'r', encoding='utf-8') as f:
             content = await f.read()
             data = json.loads(content)
         
@@ -555,7 +569,8 @@ async def download_config(req: DownloadRequest):
     if not req.url: raise HTTPException(status_code=400, detail="Missing URL")
 
     try:
-        async with aiofiles.open(CONFIG_JSON, 'r') as f:
+        # [修复] 指定 encoding='utf-8'
+        async with aiofiles.open(CONFIG_JSON, 'r', encoding='utf-8') as f:
             content = await f.read()
             data = json.loads(content)
     except: data = {}
@@ -599,13 +614,15 @@ async def download_config(req: DownloadRequest):
         data['sub_history'] = history
         
         # 保存到文件 (包含 user_info 的更新)
-        async with aiofiles.open(CONFIG_JSON, 'w') as f:
+        # [修复] 指定 encoding='utf-8'
+        async with aiofiles.open(CONFIG_JSON, 'w', encoding='utf-8') as f:
             await f.write(json.dumps(data, indent=2))
             
     except Exception as e:
         logger.error(f"处理订阅出错: {e}")
         # 出错时也要尝试保存下 URL，防止用户丢失输入
-        async with aiofiles.open(CONFIG_JSON, 'w') as f:
+        # [修复] 指定 encoding='utf-8'
+        async with aiofiles.open(CONFIG_JSON, 'w', encoding='utf-8') as f:
             await f.write(json.dumps(data, indent=2))
         raise HTTPException(status_code=500, detail=f"Processing Error: {str(e)}")
         
@@ -617,6 +634,7 @@ async def analyze_config():
         return {"status": "empty", "groups": [], "rules": [], "rule_count": 0, "regions": []}
     
     try:
+        # [修复] 指定 encoding='utf-8'
         async with aiofiles.open(OUTPUT_YAML, 'r', encoding='utf-8') as f:
             content = await f.read()
             config = yaml.safe_load(content)
@@ -625,7 +643,8 @@ async def analyze_config():
         json_rules_map = {}
         try:
             if os.path.exists(CONFIG_JSON):
-                async with aiofiles.open(CONFIG_JSON, 'r') as f:
+                # [修复] 指定 encoding='utf-8'
+                async with aiofiles.open(CONFIG_JSON, 'r', encoding='utf-8') as f:
                     content = await f.read()
                     saved_data = json.loads(content)
                     for r in saved_data.get('add_rules', []):
@@ -646,7 +665,7 @@ async def analyze_config():
 
         groups_info = [{"name": g['name'], "type": g.get('type', 'select'), "rule_count": rule_usage.get(g['name'], 0)} for g in config.get('proxy-groups', [])]
         
-        proxies = config.get('proxies', [])
+        proxies = config.get('proxies'， [])
         region_map = {
             "hk": "香港", "hong": "香港", "香港": "香港",
             "tw": "台湾", "tai": "台湾", "台湾": "台湾",

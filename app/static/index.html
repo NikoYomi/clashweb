@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ClashWeb 面板 - 修复版</title>
+    <link rel="icon" href="/images/favicon.ico">
+
+    <script src="/lib/tailwindcss.js"></script>
+    <script src="/lib/vue.global.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: { colors: { primary: '#6366f1', action: '#16a34a' } } }
+        }
+    </script>
+
+    <style>
+        /* ================= 基础与防抖动优化 ================= */
+        :root {
+            --glass-border: rgba(255, 255, 255, 0.12);
+            --card-radius: 20px;
+        }
+
+        html {
+            /* [关键修复] 强制显示垂直滚动条，防止切换 Tab 时页面宽度突变导致跳动 */
+            overflow-y: scroll; 
+        }
+
+        body {
+            transition: background-color .3s ease, color .3s ease;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ================ 卡片样式 (去除跳动 + 纯净暗黑背景) ================ */
+        .card-bg {
+            /* 亮色模式 */
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(245, 247, 255, 0.9));
+            border-radius: var(--card-radius);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+            backdrop-filter: blur(10px);
+            transition: box-shadow .3s ease; /* 仅过渡阴影，不改变位置 */
+        }
+
+        /* [修改] 暗黑模式：纯净深色背景，去除脏渐变 */
+        html.dark .card-bg {
+            background: #1e293b; /* Slate-800 纯色 */
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            backdrop-filter: none; /* 暗黑模式下减少模糊，提升清晰度 */
+        }
+
+        .smooth-card {
+            border-radius: calc(var(--card-radius) - 2px);
+            transition: box-shadow .3s ease, border-color .3s ease;
+        }
+
+        /* [修改] 悬浮仅加深阴影，不位移 */
+        .smooth-card:hover {
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+        }
+        html.dark .smooth-card:hover {
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+
+        /* 小组件背景 */
+        .glass-bg {
+            background: rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            border-radius: 12px;
+        }
+        html.dark .glass-bg {
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        /* 按钮样式 (去除按压位移) */
+        .btn-soft {
+            border-radius: 10px;
+            padding: .5rem .8rem;
+            transition: background .2s ease, opacity .2s ease;
+        }
+        .btn-soft:active {
+            opacity: 0.7; /* 仅改变透明度反馈 */
+        }
+
+        /* ================ 背景纹理 ================ */
+        .bg-dot-pattern {
+            background-color: #f8fafc;
+            background-image: radial-gradient(#6366f1 0.5px, transparent 0.5px);
+            background-size: 24px 24px;
+            background-attachment: fixed;
+        }
+        html.dark .bg-dot-pattern {
+            background-color: #0f1724; /* 很深的蓝黑底色 */
+            background-image: radial-gradient(rgba(99, 102, 241, 0.3) 0.5px, transparent 0.5px);
+        }
+
+        /* ================ 区域卡片 ================ */
+        .region-card {
+            position: relative;
+            overflow: hidden;
+            padding: 14px;
+            border-radius: 16px;
+            transition: border-color .2s;
+        }
+        .region-card:hover {
+            /* 去除位移 */
+            border-color: rgba(99, 102, 241, 0.5); 
+        }
+        .region-flag-bg {
+            position: absolute;
+            right: -10px; bottom: -20px;
+            font-size: 5.5rem; opacity: 0.06;
+            filter: grayscale(20%); pointer-events: none;
+            transform: rotate(-12deg);
+        }
+
+        /* ================ 动画优化 (解决高度塌缩跳动) ================ */
+        /* 使用 mode="out-in" 配合以下简单的淡入淡出，避免布局跳动 */
+        .fade-enter-active,
+        .fade-leave-active {
+            transition: opacity 0.2s ease;
+        }
+        .fade-enter-from,
+        .fade-leave-to {
+            opacity: 0;
+        }
+
+        /* 卡片翻转/切换动画 */
+        .switch-enter-active,
+        .switch-leave-active {
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        .switch-enter-from,
+        .switch-leave-to {
+            opacity: 0;
+            transform: scale(0.98);
+        }
+
+        /* Toast 动画 */
+        .toast-enter-active, .toast-leave-active { transition: all .3s ease; }
+        .toast-enter-from, .toast-leave-to { opacity: 0; transform: translate(-50%, -20px); }
+
+        /* 自定义滚动条 */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(156, 163, 175, 0.5); border-radius: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(156, 163, 175, 0.8); }
+
+        .terminal-logs { font-family: 'Consolas', monospace; font-size: 0.9rem; line-height: 1.5; }
+
+        /* [关键修复] 设置弹窗的层级，确保不被仪表盘内容遮挡 */
+        .modal-mask {
+            z-index: 9000; /* 极高层级 */
+        }
+        .modal-content {
+            z-index: 9001;
+        }
+
+        @media (max-width: 640px) {
+            .card-bg { border-radius: 14px; }
+            .region-flag-bg { font-size: 4.2rem; }
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100 min-h-screen flex flex-col bg-dot-pattern">
+    <div id="app" class="flex flex-col min-h-screen relative">
+
+        <div v-if="globalLoading"
+            class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10000] flex items-center justify-center flex-col text-white transition-opacity duration-300">
+            <i class="fas fa-circle-notch spinner text-4xl mb-4 animate-spin"></i>
+            <p class="text-lg font-bold tracking-wider">{{ loadingText }}</p>
+        </div>
+
+        <transition name="toast">
+            <div v-if="toast.show"
+                class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[11000] flex flex-col items-center pointer-events-none">
+                <div
+                    :class="['px-8 py-4 rounded-2xl shadow-2xl backdrop-blur-md flex items-center gap-3 text-lg font-bold border', 
+                    toast.type === 'success' ? 'bg-white/95 dark:bg-gray-800/95 text-green-600 border-green-500/30' : 'bg-white/95 dark:bg-gray-800/95 text-red-500 border-red-500/30']">
+                    <i :class="['fas', toast.type === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle', 'text-2xl']"></i>
+                    <span>{{ toast.msg }}</span>
+                </div>
+            </div>
+        </transition>
+
+        <header class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md shadow-sm z-30 sticky top-0 border-b border-gray-100 dark:border-gray-700">
+            <div class="container mx-auto px-4 h-16 flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <img src="/images/icon.png" alt="Logo" class="w-10 h-10 rounded-lg object-contain bg-gray-100 dark:bg-gray-700 p-1">
+                    <span class="text-xl font-bold tracking-tight hidden md:block">ClashWeb</span>
+                </div>
+                <div class="flex items-center gap-4">
+                    <button @click="openSettings" title="设置"
+                        class="w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition flex items-center justify-center text-gray-600 dark:text-gray-300 btn-soft">
+                        <i class="fas fa-cog text-xl"></i>
+                    </button>
+                    <button @click="toggleTheme"
+                        class="w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition flex items-center justify-center text-yellow-500 btn-soft">
+                        <i :class="isDark ? 'fas fa-moon' : 'fas fa-sun'" class="text-xl"></i>
+                    </button>
+                    <a href="https://github.com/NikoYomi/clashweb" target="_blank"
+                        class="w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition flex items-center justify-center text-gray-600 dark:text-gray-300 btn-soft">
+                        <i class="fab fa-github text-xl"></i>
+                    </a>
+                </div>
+            </div>
+        </header>
+        <main class="container mx-auto px-4 py-8 max-w-5xl flex-1 flex flex-col gap-6 relative z-10">
+
+            <div class="flex justify-between items-center w-full">
+                <div class="flex gap-2 bg-gray-200/50 dark:bg-gray-800/50 p-1 rounded-xl overflow-x-auto no-scrollbar transition-colors">
+                    <button v-for="tab in tabs" :key="tab.id" @click="currentTab = tab.id"
+                        :class="['px-5 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap', currentTab === tab.id ? 'bg-white dark:bg-gray-700 shadow-sm text-primary' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300']">
+                        <i :class="tab.icon" class="mr-2"></i> {{ tab.name }}
+                    </button>
+                </div>
+                <button @click="restartContainers" title="重启容器"
+                    class="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl shadow-md transition-colors font-bold text-sm whitespace-nowrap ml-4 btn-soft">
+                    <i class="fas fa-power-off"></i> 重启 Clash
+                </button>
+            </div>
+
+            <transition name="fade" mode="out-in">
+                
+                <div v-if="currentTab === 'home'" key="home" class="flex flex-col gap-6">
+
+                    <div class="relative w-full h-80">
+                        <transition name="switch" mode="out-in">
+                            
+                            <div v-if="!configData.sub_url || showInputCard" key="input-card"
+                                class="absolute w-full h-full card-bg smooth-card p-8 border border-gray-100 dark:border-gray-700 text-center relative overflow-hidden flex flex-col justify-center">
+                                <div class="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-primary to-purple-600"></div>
+
+                                <div v-if="configData.sub_url" class="absolute top-6 right-6 z-20">
+                                    <button @click="showInputCard = false" title="返回详情"
+                                        class="w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-300 transition-colors flex items-center justify-center btn-soft">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+
+                                <div class="w-16 h-16 bg-indigo-50 dark:bg-indigo-900/40 text-primary rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl shadow-inner flex-shrink-0">
+                                    <i class="fas fa-exchange-alt"></i>
+                                </div>
+
+                                <h2 class="text-xl font-bold text-center mb-5">{{ configData.sub_url ? '切换订阅' : '初始化订阅' }}</h2>
+
+                                <div class="max-w-xl w-full mx-auto flex flex-col gap-4 relative z-10">
+                                    <div class="relative group">
+                                        <i class="fas fa-link absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 group-focus-within:text-primary transition-colors"></i>
+                                        <input v-model="form.sub_url" type="text" placeholder="在此粘贴新机场订阅链接..."
+                                            class="w-full pl-10 pr-4 py-3.5 rounded-xl bg-white/70 dark:bg-gray-900/60 border-2 border-transparent focus:border-primary outline-none transition-all text-base shadow-inner">
+                                    </div>
+                                    <button @click="downloadConfig"
+                                        class="w-full py-3.5 bg-green-600 hover:bg-green-700 text-white font-bold shadow-md transition-colors flex items-center justify-center gap-2 rounded-xl text-base btn-soft">
+                                        <span>下载并应用配置</span><i class="fas fa-bolt"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div v-else key="info-card"
+                                class="absolute w-full h-full card-bg smooth-card p-8 border border-gray-100 dark:border-gray-700 relative overflow-hidden flex flex-col justify-center">
+                                <div class="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-primary to-purple-600"></div>
+
+                                <div class="absolute top-6 right-6 z-20">
+                                    <button @click="showInputCard = true" title="切换订阅"
+                                        class="w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-300 transition-colors flex items-center justify-center btn-soft">
+                                        <i class="fas fa-exchange-alt"></i>
+                                    </button>
+                                </div>
+
+                                <div class="flex items-center gap-5 mb-8 relative z-10">
+                                    <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center text-3xl shadow-lg shadow-blue-500/30">
+                                        <i class="fas fa-plane-departure"></i>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <a :href="configData.user_info?.webUrl || 'javascript:void(0)'" 
+                                           :target="configData.user_info?.webUrl ? '_blank' : ''"
+                                           :class="['text-3xl font-bold leading-tight truncate transition-colors flex items-center gap-2', configData.user_info?.webUrl ? 'text-gray-800 dark:text-white hover:text-primary cursor-pointer group' : 'text-gray-800 dark:text-white cursor-default']">
+                                            {{ configData.user_info?.name || '当前订阅' }}
+                                            <i v-if="configData.user_info?.webUrl" class="fas fa-external-link-alt text-sm opacity-0 group-hover:opacity-50 transition-opacity"></i>
+                                        </a>
+                                        
+                                        <div class="text-sm text-gray-400 mt-1 flex items-center gap-2">
+                                            <button @click="refreshSubscription" title="点击刷新"
+                                                class="text-blue-500 hover:text-blue-600 dark:text-blue-400 transition-colors bg-blue-50 dark:bg-blue-900/20 rounded p-1 btn-soft">
+                                                <i class="fas fa-sync-alt"></i>
+                                            </button>
+                                            <span class="font-mono">{{ configData.user_info?.update_time || analysis.update_time }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="flex flex-col gap-3 w-full relative z-10">
+                                    <div class="flex justify-between text-sm font-bold text-gray-600 dark:text-gray-300">
+                                        <span>已用: <span class="text-gray-800 dark:text-white">{{ formatBytes((configData.user_info?.upload || 0) + (configData.user_info?.download || 0)) }}</span></span>
+                                        <span>总计: <span class="text-gray-800 dark:text-white">{{ formatBytes(configData.user_info?.total || 0) }}</span></span>
+                                    </div>
+                                    <div class="w-full bg-gray-100 dark:bg-gray-900 rounded-full h-6 overflow-hidden shadow-inner border border-gray-200 dark:border-gray-600 relative">
+                                        <div class="bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 h-full rounded-full transition-all duration-1000 ease-out relative"
+                                            :style="{ width: usagePercent + '%' }">
+                                            <div class="absolute inset-0 bg-white/20 animate-[pulse_2s_infinite]"></div>
+                                        </div>
+                                    </div>
+                                    <div class="flex justify-between items-center mt-2 text-xs font-medium text-gray-500 dark:text-gray-400">
+                                        <div class="flex gap-4">
+                                            <span class="flex items-center gap-1 bg-white/60 dark:bg-gray-800/60 px-2 py-1 rounded backdrop-blur-sm">
+                                                <i class="fas fa-arrow-up text-green-500"></i> {{ formatBytes(configData.user_info?.upload || 0) }}
+                                            </span>
+                                            <span class="flex items-center gap-1 bg-white/60 dark:bg-gray-800/60 px-2 py-1 rounded backdrop-blur-sm">
+                                                <i class="fas fa-arrow-down text-blue-500"></i> {{ formatBytes(configData.user_info?.download || 0) }}
+                                            </span>
+                                        </div>
+                                        <div class="flex items-center gap-1 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 px-2 py-1 rounded">
+                                            <i class="fas fa-hourglass-end"></i> {{ formatDate(configData.user_info?.expire || 0) }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </transition>
+                    </div>
+
+                    <div class="flex flex-col gap-3">
+                        <div class="flex flex-col gap-1 px-2">
+                            <h3 class="text-lg font-bold flex items-center gap-2 text-gray-600 dark:text-gray-300">
+                                <i class="fas fa-map-marker-alt text-primary"></i> 节点分布 (共 {{ analysis.total_nodes }} 个)
+                            </h3>
+                            <div class="flex items-center gap-2 mt-1">
+                                <div :class="['w-3 h-3 rounded-full transition-colors', configData.auto_update ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-gray-300 dark:bg-gray-600']"></div>
+                                <span v-if="configData.auto_update" class="text-xs font-medium text-green-600 dark:text-green-400">
+                                    已设置 {{ configData.cron_expression }} 更新一次
+                                </span>
+                                <span v-else class="text-xs text-gray-400">
+                                    未设置自动更新订阅，请在设置中打开
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                            <div v-for="region in analysis.regions" :key="region.name" class="region-card card-bg border border-transparent">
+                                <div class="region-flag-bg">{{ region.icon }}</div>
+                                <div class="relative z-10">
+                                    <span class="text-lg font-bold text-gray-800 dark:text-gray-100 block">{{ region.name }}</span>
+                                    <span class="text-sm font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full mt-1 inline-block">{{ region.count }} 节点</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div v-if="currentTab === 'groups'" key="groups" class="flex flex-col gap-6">
+                    <div class="card-bg smooth-card rounded-xl p-6 border-l-4 border-green-500 transition-colors">
+                        <h3 class="text-lg font-bold mb-4 flex items-center gap-2">➕ 添加自定义策略组</h3>
+                        <div class="grid md:grid-cols-12 gap-6">
+                            <div class="md:col-span-4 flex flex-col gap-4">
+                                <div>
+                                    <label class="block text-xs text-gray-500 mb-1">组名称 (点击右侧图标可插入)</label>
+                                    <input v-model="groupInput.name" type="text" placeholder="例如：漏网之鱼"
+                                        class="w-full p-3 rounded-lg bg-white/70 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 outline-none focus:ring-2 focus:ring-green-500 text-lg transition-all">
+                                </div>
+                                <button @click="addNewGroup"
+                                    class="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-bold shadow-md transition-colors flex items-center justify-center gap-2 rounded-xl btn-soft">
+                                    <i class="fas fa-plus"></i> 确认添加
+                                </button>
+                                <p class="text-xs text-gray-400 leading-relaxed">* 新组将自动包含订阅中的所有节点。</p>
+                            </div>
+                            <div class="md:col-span-8">
+                                <label class="block text-xs text-gray-500 mb-1">图标选择</label>
+                                <div class="bg-white/70 dark:bg-gray-900/50 p-2 rounded-xl border dark:border-gray-700 h-40 overflow-y-auto grid grid-cols-10 gap-1 content-start custom-scrollbar">
+                                    <button v-for="icon in icons" :key="icon" @click="insertIcon(icon)"
+                                        class="aspect-square rounded hover:bg-white dark:hover:bg-gray-700 transition-colors flex items-center justify-center border border-transparent hover:border-gray-200 dark:hover:border-gray-600 text-lg cursor-pointer select-none">
+                                        {{ icon }}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-bg smooth-card rounded-xl p-6 flex-1 flex flex-col transition-colors">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-bold flex items-center gap-2">📂 现有策略组 ({{ analysis.groups.length }})</h3>
+                            <button @click="toggleGroupEdit" title="删除模式"
+                                :class="isGroupEditMode ? 'bg-red-500 text-white shadow-md' : 'text-gray-500 bg-gray-100 dark:bg-gray-700 hover:text-red-500'"
+                                class="w-10 h-10 rounded-lg flex items-center justify-center transition-colors text-lg btn-soft">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                            <div v-for="g in analysis.groups" :key="g.name" @click="toggleGroupSelection(g.name)"
+                                :class="['p-4 rounded-xl border transition-colors relative cursor-pointer flex items-center gap-3 min-h-[80px]', isGroupSelected(g.name) ? 'card-selected border-red-500' : 'bg-white/80 dark:bg-gray-700 border-transparent hover:border-gray-200 dark:hover:border-gray-600']">
+                                <div class="flex-1 min-w-0 flex flex-col justify-center pl-2">
+                                    <div class="font-medium truncate text-lg">{{ g.name }}</div>
+                                    <div class="text-xs text-gray-500 mt-1 flex items-center gap-1"><i class="fas fa-link"></i> {{ g.rule_count }} 条规则</div>
+                                </div>
+                                <div v-if="isGroupEditMode" class="absolute top-2 right-2">
+                                    <div :class="['w-5 h-5 rounded-full border flex items-center justify-center transition-colors', isGroupSelected(g.name) ? 'bg-red-500 border-red-500 text-white' : 'border-gray-400 bg-white']">
+                                        <i v-if="isGroupSelected(g.name)" class="fas fa-check text-xs"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-if="currentTab === 'rules'" key="rules" class="flex flex-col gap-6">
+                    <div class="card-bg smooth-card rounded-xl p-6 border-l-4 border-green-500 transition-colors">
+                        <h3 class="text-lg font-bold mb-1 flex items-center gap-2">➕ 添加自定义规则</h3>
+                        <p class="text-xs text-gray-400 mb-4 ml-7">可批量添加，一行一个</p>
+                        <div class="grid md:grid-cols-12 gap-6">
+                            <div class="md:col-span-8 flex flex-col gap-4">
+                                <div>
+                                    <label class="block text-xs text-gray-500 mb-1">内容 (网址/ip)</label>
+                                    <textarea v-model="ruleInput.raw" rows="4"
+                                        class="w-full p-3 rounded-lg bg-white/70 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 outline-none focus:ring-2 focus:ring-green-500 text-sm font-mono transition-all"
+                                        placeholder="https://openai.com&#10;1.1.1.1"></textarea>
+                                </div>
+                                <button @click="addNewRules"
+                                    class="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-bold shadow-md transition-colors flex items-center justify-center gap-2 rounded-xl btn-soft">
+                                    <i class="fas fa-plus"></i> 添加规则
+                                </button>
+                            </div>
+                            <div class="md:col-span-4 flex flex-col gap-4 mt-1">
+                                <div>
+                                    <label class="block text-xs text-gray-500 mb-1">目标策略组</label>
+                                    <div class="relative">
+                                        <select v-model="ruleInput.target"
+                                            class="w-full p-3 rounded-lg bg-white/70 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 outline-none appearance-none text-sm transition-all">
+                                            <option v-for="g in analysis.groups" :key="g.name" :value="g.name">{{ g.name }}</option>
+                                        </select>
+                                        <i class="fas fa-chevron-down absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"></i>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-500 mb-1">备注 <span class="text-gray-400 text-[10px]">(非必要)</span></label>
+                                    <input v-model="ruleInput.remark" type="text" placeholder="例如：AI"
+                                        class="w-full p-3 rounded-lg bg-white/70 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 outline-none focus:ring-2 focus:ring-green-500 text-sm transition-all">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-bg smooth-card rounded-xl p-6 flex-1 flex flex-col h-[600px] transition-colors">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-bold flex items-center gap-2">📜 规则列表 ({{ analysis.rule_count }})</h3>
+                            <div class="flex gap-2 items-center">
+                                <input v-model="ruleSearch" type="text" placeholder="搜索..."
+                                    class="px-3 py-1 rounded bg-white/80 dark:bg-gray-700 text-sm border border-transparent focus:border-green-500 outline-none transition-all">
+                                <button @click="toggleRuleEdit" title="删除模式"
+                                    :class="isRuleEditMode ? 'bg-red-500 text-white shadow-md' : 'text-gray-500 bg-gray-100 dark:bg-gray-700 hover:text-red-500'"
+                                    class="w-10 h-10 rounded-lg flex items-center justify-center transition-colors text-lg btn-soft">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex-1 overflow-y-auto bg-white/70 dark:bg-gray-900 rounded-lg border dark:border-gray-700 p-2 text-sm font-mono custom-scrollbar">
+                            <div v-for="(rule, idx) in filteredRules" :key="rule" @click="toggleRuleSelection(rule)"
+                                :class="['p-2 border-b border-gray-200 dark:border-gray-800 flex items-center gap-3 cursor-pointer hover:bg-white/90 dark:hover:bg-gray-800 transition-colors', isRuleSelected(rule) ? 'bg-red-50 dark:bg-red-900/20' : '']">
+                                <div v-if="isRuleEditMode"
+                                    :class="['w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center', isRuleSelected(rule) ? 'bg-red-500 border-red-500 text-white' : 'border-gray-400 bg-white']">
+                                    <i v-if="isRuleSelected(rule)" class="fas fa-check text-[10px]"></i>
+                                </div>
+                                <span class="text-gray-400 select-none w-8 text-right">{{ idx + 1 }}.</span>
+                                <div class="truncate break-all flex-1">
+                                    <span class="">{{ rule.split('#')[0] }}</span>
+                                    <span v-if="rule.includes('#')" class="text-gray-400 text-xs ml-2 italic"># {{ rule.split('#')[1] }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-if="currentTab === 'logs'" key="logs" class="flex flex-col gap-4 h-[700px]">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-lg font-bold"><i class="fas fa-terminal text-primary"></i> 实时运行日志</h3>
+                        <div class="flex gap-2">
+                            <button @click="copyLogs"
+                                class="text-sm bg-gray-200 dark:bg-gray-700 px-3 py-1 rounded hover:bg-gray-300 transition-colors btn-soft">
+                                <i class="fas fa-copy"></i> 复制
+                            </button>
+                            <button @click="fetchLogs"
+                                class="text-sm bg-gray-200 dark:bg-gray-700 px-3 py-1 rounded hover:bg-gray-300 transition-colors btn-soft">
+                                <i class="fas fa-sync-alt"></i> 刷新
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex-1 bg-black text-green-400 font-mono text-xs md:text-sm p-4 rounded-xl overflow-y-auto border border-gray-700 shadow-inner terminal-logs custom-scrollbar"
+                        ref="logContainer">
+                        <div v-if="logs.length === 0" class="text-gray-500 italic">暂无日志或正在加载...</div>
+                        <div v-for="(line, idx) in logs" :key="idx" class="whitespace-pre-wrap break-all hover:bg-gray-900">
+                            {{ line }}
+                        </div>
+                    </div>
+                </div>
+
+            </transition> 
+            
+            <div v-if="(isGroupEditMode && selectedGroups.length > 0) || (isRuleEditMode && selectedRules.length > 0)"
+                class="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-red-600 text-white px-8 py-4 rounded-full shadow-2xl z-50 flex items-center gap-4">
+                <span class="font-bold">已选择 {{ isGroupEditMode ? selectedGroups.length : selectedRules.length }} 项</span>
+                <button @click="initiateDelete"
+                    class="bg-white text-red-600 px-4 py-1 rounded-full font-bold hover:bg-gray-100 transition-colors">立即删除</button>
+            </div>
+        </main>
+        <div v-if="showSettings"
+        class="fixed inset-0 bg-black/60 backdrop-blur-sm modal-mask flex items-center justify-center p-4"
+        @click.self="showSettings = false">
+        <div
+            class="card-bg smooth-card w-full max-w-xl p-6 shadow-2xl overflow-hidden transform transition-all max-h-[90vh] overflow-y-auto flex flex-col modal-content">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold flex items-center gap-2"><i class="fas fa-sliders-h"></i> 设置与维护</h3>
+                <button @click="showSettings = false"
+                    class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+
+            <div class="flex gap-2 mb-6 bg-white/75 dark:bg-gray-800/40 p-1 rounded-lg">
+                <button @click="settingsTab = 'basic'"
+                    :class="['px-4 py-2 text-sm font-medium rounded-lg transition-colors flex-1', settingsTab === 'basic' ? 'bg-white dark:bg-gray-600 text-primary shadow-sm' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700']">基本设置</button>
+                <button @click="settingsTab = 'history'"
+                    :class="['px-4 py-2 text-sm font-medium rounded-lg transition-colors flex-1', settingsTab === 'history' ? 'bg-white dark:bg-gray-600 text-primary shadow-sm' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700']">订阅历史</button>
+                <button @click="settingsTab = 'backup'"
+                    :class="['px-4 py-2 text-sm font-medium rounded-lg transition-colors flex-1', settingsTab === 'backup' ? 'bg-white dark:bg-gray-600 text-primary shadow-sm' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700']">备份还原</button>
+            </div>
+
+            <div v-show="settingsTab === 'basic'" class="flex-1">
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-2 text-gray-500">转换后端</label>
+                    <input v-model="configData.sub_backend" type="text"
+                        class="w-full p-3 rounded-lg bg-white/70 dark:bg-gray-700 border border-gray-200 dark:border-gray-700 outline-none focus:ring-2 focus:ring-primary transition-all"
+                        placeholder="http://...">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-bold mb-2 text-gray-500">重启容器 (逗号分隔)</label>
+                    <input v-model="configData.restart_containers" type="text"
+                        class="w-full p-3 rounded-lg bg-white/70 dark:bg-gray-700 border border-gray-200 dark:border-gray-700 outline-none focus:ring-2 focus:ring-primary transition-all"
+                        placeholder="clash, yard">
+                </div>
+
+                <div class="mb-6 p-4 bg-white/75 dark:bg-gray-700/30 rounded-xl border border-gray-100 dark:border-gray-700">
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="block text-sm font-bold text-gray-500 flex items-center gap-2"><i class="fas fa-clock"></i> 定时自动更新 & 重启</label>
+                        <div @click="configData.auto_update = !configData.auto_update"
+                            :class="['w-12 h-6 rounded-full p-1 cursor-pointer transition-colors', configData.auto_update ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600']">
+                            <div :class="['bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200', configData.auto_update ? 'translate-x-6' : 'translate-x-0']"></div>
+                        </div>
+                    </div>
+                    <div v-if="configData.auto_update" class="mt-3">
+                        <input v-model="configData.cron_expression" type="text"
+                            class="w-full p-2 rounded bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-sm font-mono"
+                            placeholder="0 4 * * *">
+                        <p class="text-xs text-gray-400 mt-1">Cron 表达式 (例: 0 4 * * * 为每天凌晨4点)</p>
+                    </div>
+                </div>
+            </div>
+
+            <div v-show="settingsTab === 'history'" class="flex-1 overflow-hidden flex flex-col">
+                <div v-if="configData.sub_history && configData.sub_history.length > 0"
+                    class="space-y-3 overflow-y-auto pr-1 custom-scrollbar flex-1 pb-2">
+                    <div v-for="(item, idx) in configData.sub_history" :key="idx" @click="applyHistory(item.url)"
+                        :class="['flex flex-col p-3 rounded-lg text-sm border transition-colors cursor-pointer group relative overflow-hidden', 
+                            item.url === configData.sub_url ? 'bg-green-50 dark:bg-green-900/10 border-green-500/30 opacity-70 cursor-default' : 'bg-white/80 dark:bg-gray-700/50 border-transparent hover:border-primary/30']">
+
+                        <div class="flex justify-between items-center mb-2 z-10">
+                            <span class="font-bold text-gray-700 dark:text-gray-200 text-base truncate pr-2">{{ item.name || '未知机场' }}</span>
+                            <span v-if="item.url === configData.sub_url"
+                                class="bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-300 px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap">使用中</span>
+                            <span v-else class="text-xs text-gray-400 whitespace-nowrap">{{ item.date }}</span>
+                        </div>
+
+                        <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 z-10 mb-1" v-if="item.info && item.info.total">
+                            <div class="flex-1 bg-gray-200 dark:bg-gray-600 h-1.5 rounded-full overflow-hidden">
+                                <div class="bg-blue-500 h-full rounded-full" :style="{ width: Math.min(100, ((item.info.upload + item.info.download) / item.info.total * 100)) + '%' }"></div>
+                            </div>
+                            <span class="whitespace-nowrap">{{ formatBytes(item.info.upload + item.info.download) }} / {{ formatBytes(item.info.total) }}</span>
+                        </div>
+
+                        <i class="fas fa-bolt absolute right-[-5px] bottom-[-5px] text-4xl opacity-5 transition-opacity z-0"></i>
+                    </div>
+                </div>
+                <div v-else class="text-center text-xs text-gray-400 py-10">暂无历史记录</div>
+            </div>
+
+            <div v-show="settingsTab === 'backup'" class="flex-1">
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div class="flex flex-col gap-2">
+                        <a :href="backupUrl" target="_blank"
+                            class="flex flex-col items-center justify-center p-6 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors border border-blue-200 dark:border-blue-800 cursor-pointer text-center group h-32">
+                            <i class="fas fa-download text-3xl mb-2"></i><span class="font-bold">下载备份</span>
+                        </a>
+                        <label class="flex items-center gap-2 text-xs text-gray-500 justify-center"><input type="checkbox" v-model="backupOpts.includeSub"> 包含订阅链接</label>
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <div class="relative flex flex-col items-center justify-center p-6 rounded-xl bg-orange-50 dark:bg-orange-900/20 text-orange-600 hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors border border-orange-200 dark:border-orange-800 cursor-pointer text-center group h-32">
+                            <input type="file" @change="restoreConfig" accept=".json" class="absolute inset-0 opacity-0 cursor-pointer z-10">
+                            <i class="fas fa-upload text-3xl mb-2"></i><span class="font-bold">还原配置</span>
+                        </div>
+                        <label class="flex items-center gap-2 text-xs text-gray-500 justify-center"><input type="checkbox" v-model="restoreOpts.restoreSub"> 覆盖当前订阅</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="border-t border-gray-100 dark:border-gray-700 my-4"></div>
+
+            <div class="flex justify-end gap-3">
+                <button @click="showSettings = false"
+                    class="px-4 py-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">关闭</button>
+                <button @click="saveSettings"
+                    class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium shadow-lg shadow-green-600/20 transition-colors">保存设置</button>
+            </div>
+        </div>
+    </div>
+
+    <div v-if="confirmModal.show"
+        class="fixed inset-0 bg-black/70 backdrop-blur-sm z-[10000] flex items-center justify-center p-4">
+        <div class="card-bg smooth-card w-full max-w-md p-6 shadow-2xl border-2 border-red-500/50">
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 bg-red-100 dark:bg-red-900/30 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
+                    <i class="fas fa-trash-alt"></i>
+                </div>
+                <h3 class="text-xl font-bold mb-2">级联删除确认</h3>
+                <p class="text-gray-500 dark:text-gray-400 text-sm">删除选中的组将同时移除<br><span class="text-red-500 font-bold text-lg">{{ confirmModal.count }}</span> 条关联规则。</p>
+            </div>
+            <div class="flex gap-3">
+                <button @click="confirmModal.show = false"
+                    class="flex-1 py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-xl font-bold transition-colors">取消</button>
+                <button @click="performDelete"
+                    class="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold shadow-lg shadow-red-600/30 transition-colors">确认删除</button>
+            </div>
+        </div>
+    </div>
+
+</div> <script>
+    const { createApp, ref, reactive, computed, onMounted, watch } = Vue
+
+    createApp({
+        setup() {
+            const isDark = ref(true)
+
+            // 防抖工具函数
+            const debounce = (fn, delay) => {
+                let timeoutId;
+                return (...args) => {
+                    clearTimeout(timeoutId);
+                    timeoutId = setTimeout(() => fn(...args), delay);
+                };
+            };
+
+            const globalLoading = ref(false)
+            const loadingText = ref('')
+            const showSettings = ref(false)
+            const currentTab = ref('home')
+            const settingsTab = ref('basic')
+            const showInputCard = ref(false)
+            const toast = reactive({ show: false, msg: '', type: 'success' })
+            const confirmModal = reactive({ show: false, count: 0 })
+
+            const logs = ref([])
+            const logContainer = ref(null)
+            let logInterval = null
+
+            const icons = [
+                '🚀', '✈️', '☁️', '🔒', '🛡️', '📶', '🌐', '🏠', '🏢', '📺', '🎬', '🎵', '🎮', '🍎', '🤖', '🐙', '🐱', '🦄', '🔥', '⚡',
+                '💬', '🛒', '💾', '📹', '📷', '📞', '🔞', '🛑', '✅', '♻️', '♾️', '📡', '🚦', '🚨', '🚧', '🔧', '🔨', '⚙️', '💎', '🔑',
+                '🔔', '📢', '🦠', '🧬', '💊', '💉', '🩸', '🔭', '🔬', '🌡️', '🧪', '🧫', '🧬', '🧸', '🎁', '🎈', '🎉', '🎨', '🎭', '🎪'
+            ]
+
+            const tabs = [
+                { id: 'home', name: '仪表盘', icon: 'fas fa-tachometer-alt' },
+                { id: 'groups', name: '代理组', icon: 'fas fa-layer-group' },
+                { id: 'rules', name: '规则管理', icon: 'fas fa-list-ul' },
+                { id: 'logs', name: '运行日志', icon: 'fas fa-terminal' }
+            ]
+
+            const form = reactive({ sub_url: '' })
+            const configData = reactive({
+                sub_backend: '', sub_url: '', restart_containers: '',
+                auto_update: false, cron_expression: '0 4 * * *',
+                user_info: { name: "", webUrl: "", upload: 0, download: 0, total: 0, expire: 0, update_time: '' },
+                sub_history: [], add_groups: [], del_groups: [], add_rules: [], del_rules: []
+            })
+            const analysis = reactive({ groups: [], rules: [], rule_count: 0, regions: [], total_nodes: 0, update_time: '' })
+
+            const groupInput = reactive({ name: '' })
+            const isGroupEditMode = ref(false)
+            const selectedGroups = ref([])
+            const ruleInput = reactive({ raw: '', target: '', remark: '' })
+            const isRuleEditMode = ref(false)
+            const selectedRules = ref([])
+            
+            const ruleSearch = ref('')
+            const searchKey = ref('') 
+
+            // 监听搜索输入（防抖）
+            watch(ruleSearch, debounce((newVal) => {
+                searchKey.value = newVal;
+            }, 300));
+
+            const backupOpts = reactive({ includeSub: false })
+            const restoreOpts = reactive({ restoreSub: false })
+
+            // 工具函数
+            const formatBytes = (bytes) => {
+                if (!bytes || bytes === 0) return '0 B';
+                const k = 1024;
+                const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            }
+            const formatDate = (timestamp) => {
+                if (!timestamp || timestamp === 0) return '无限期';
+                return new Date(timestamp * 1000).toLocaleDateString() + ' ' + new Date(timestamp * 1000).toLocaleTimeString();
+            }
+            const usagePercent = computed(() => {
+                if (!configData.user_info || !configData.user_info.total || configData.user_info.total === 0) return 0;
+                const used = (configData.user_info.upload || 0) + (configData.user_info.download || 0);
+                return Math.min(100, (used / configData.user_info.total) * 100);
+            });
+            const backupUrl = computed(() => `/api/backup?include_sub=${backupOpts.includeSub}`)
+            
+            // 交互反馈
+            const showLoading = (t) => { loadingText.value = t; globalLoading.value = true }
+            const hideLoading = () => { globalLoading.value = false }
+            const showToast = (msg, type = 'success') => {
+                toast.msg = msg; toast.type = type; toast.show = true;
+                setTimeout(() => toast.show = false, 2500);
+            }
+
+            // 核心逻辑
+            const loadData = async () => {
+                try {
+                    const ts = new Date().getTime()
+                    const [resData, resAnalysis] = await Promise.all([
+                        fetch('/api/data?t=' + ts).then(r => r.json()),
+                        fetch('/api/analysis?t=' + ts).then(r => r.json())
+                    ])
+                    
+                    if (!resData.user_info) resData.user_info = { name: "", webUrl: "", upload: 0, download: 0, total: 0, expire: 0, update_time: '' };
+                    
+                    Object.assign(configData, {
+                        sub_backend: "", sub_url: "", restart_containers: "", auto_update: false,
+                        cron_expression: "0 4 * * *", sub_history: [], add_groups: [],
+                        del_groups: [], add_rules: [], del_rules: [], ...resData
+                    })
+                    
+                    if (configData.sub_url) showInputCard.value = false;
+                    if (resAnalysis.status === 'success') {
+                        Object.assign(analysis, resAnalysis)
+                        if (analysis.groups.length > 0 && !ruleInput.target) ruleInput.target = analysis.groups[0].name
+                    }
+                } catch (e) { console.error(e) }
+            }
+
+            const saveData = async () => {
+                const payload = JSON.parse(JSON.stringify(configData))
+                const res = await fetch('/api/data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+                if (!res.ok) throw new Error("保存失败");
+            }
+
+            const copyLogs = () => {
+                if (!logs.value || logs.value.length === 0) return showToast("没有日志可复制", "error");
+                const text = logs.value.join('\n');
+                navigator.clipboard.writeText(text).then(() => showToast("日志已复制")).catch(() => showToast("复制失败", "error"));
+            }
+
+            const fetchLogs = async () => {
+                try {
+                    const res = await fetch('/api/logs?lines=200')
+                    const data = await res.json()
+                    logs.value = data.logs
+                    if (logContainer.value) {
+                        const el = logContainer.value;
+                        const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= 50;
+                        if (isAtBottom) setTimeout(() => el.scrollTop = el.scrollHeight, 0)
+                    }
+                } catch (e) { console.error(e) }
+            }
+
+            watch(currentTab, (newTab) => {
+                if (newTab === 'logs') {
+                    fetchLogs(); logInterval = setInterval(fetchLogs, 5000)
+                } else {
+                    if (logInterval) { clearInterval(logInterval); logInterval = null; }
+                }
+            })
+
+            // 其他业务逻辑
+            const insertIcon = (icon) => { groupInput.name = icon + ' ' + groupInput.name }
+            const getRuleTarget = (ruleStr) => {
+                try {
+                    const clean = ruleStr.split('#')[0].trim();
+                    const parts = clean.split(',');
+                    if (parts.length >= 3) return parts[2].trim();
+                } catch (e) { } return "";
+            }
+            const cleanRuleInput = (rawLine) => {
+                let line = rawLine.trim(); if (!line) return null;
+                let hostname = '';
+                try {
+                    const urlStr = /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(line) ? line : 'http://' + line;
+                    const u = new URL(urlStr); hostname = u.hostname.replace(/^\[|\]$/g, '');
+                } catch (e) { hostname = line.split('/')[0].split(':')[0]; }
+                if (!hostname) return null;
+                if (/^(\d{1,3}\.){3}\d{1,3}$/.test(hostname)) return { type: 'IP-CIDR', value: hostname + '/32' };
+                if (/^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/.test(line)) return { type: 'IP-CIDR', value: line };
+                if (hostname.includes(':')) return { type: 'IP-CIDR6', value: hostname + '/128' };
+                const dotCount = (hostname.match(/\./g) || []).length;
+                if (dotCount <= 1) return { type: 'DOMAIN-SUFFIX', value: hostname };
+                return { type: 'DOMAIN', value: hostname };
+            }
+
+            const addNewRules = async () => {
+                if (!ruleInput.raw || !ruleInput.target) return showToast("请完善信息", "error")
+                showLoading('添加规则...')
+                try {
+                    const lines = ruleInput.raw.split('\n')
+                    let addedCount = 0
+                    lines.forEach(rawLine => {
+                        const res = cleanRuleInput(rawLine)
+                        if (res) {
+                            let ruleStr = `${res.type},${res.value},${ruleInput.target}`
+                            if (ruleInput.remark) ruleStr += ` # ${ruleInput.remark}`
+                            const cleanStr = ruleStr.split('#')[0].trim();
+                            const alreadyExists = analysis.rules.some(r => r.split('#')[0].trim() === cleanStr) || configData.add_rules.some(r => r.split('#')[0].trim() === cleanStr);
+                            if (!alreadyExists) { configData.add_rules.unshift(ruleStr); addedCount++; }
+                        }
+                    })
+                    if (addedCount > 0) {
+                        await saveData(); await loadData();
+                        ruleInput.raw = ''; ruleInput.remark = ''; showToast(`已添加 ${addedCount} 条规则`)
+                    } else { showToast('规则已存在或无效', 'error') }
+                } catch (e) { showToast(e.message, 'error') } finally { hideLoading() }
+            }
+
+            const addNewGroup = async () => {
+                if (!groupInput.name) return showToast("请输入组名", "error")
+                if (analysis.groups.find(g => g.name === groupInput.name) || configData.add_groups.find(g => g.name === groupInput.name)) return showToast("组名已存在", "error")
+                showLoading('添加组...')
+                try {
+                    configData.add_groups.unshift({ name: groupInput.name, type: 'select', proxies: ["DIRECT", "REJECT"] })
+                    await saveData(); await loadData();
+                    groupInput.name = ''; showToast('组添加成功')
+                } catch (e) { showToast(e.message, "error") } finally { hideLoading() }
+            }
+
+            const initiateDelete = () => {
+                if (isGroupEditMode.value && selectedGroups.value.length > 0) {
+                    const affectedRuleCount = selectedGroups.value.reduce((acc, groupName) => {
+                        return acc + analysis.rules.filter(r => {
+                            const target = getRuleTarget(r); return target === groupName;
+                        }).length
+                    }, 0)
+                    if (affectedRuleCount > 0) { confirmModal.count = affectedRuleCount; confirmModal.show = true; return; }
+                }
+                performDelete();
+            }
+
+            const performDelete = async () => {
+                confirmModal.show = false; showLoading('删除中...')
+                try {
+                    if (isGroupEditMode.value) {
+                        selectedGroups.value.forEach(name => {
+                            const idx = configData.add_groups.findIndex(g => g.name === name)
+                            if (idx > -1) configData.add_groups.splice(idx, 1)
+                            else if (!configData.del_groups.includes(name)) configData.del_groups.push(name)
+                            configData.add_rules = configData.add_rules.filter(r => getRuleTarget(r) !== name);
+                        })
+                        selectedGroups.value = []; isGroupEditMode.value = false;
+                    } else {
+                        selectedRules.value.forEach(rule => {
+                            const targetClean = rule.split('#')[0].trim();
+                            const idx = configData.add_rules.findIndex(r => r.split('#')[0].trim() === targetClean)
+                            if (idx > -1) configData.add_rules.splice(idx, 1)
+                            else if (!configData.del_rules.includes(targetClean)) configData.del_rules.push(targetClean)
+                        })
+                        selectedRules.value = []; isRuleEditMode.value = false;
+                    }
+                    await saveData(); await loadData(); showToast('删除成功')
+                } catch (e) { showToast(e.message, "error") } finally { hideLoading() }
+            }
+
+            const restoreConfig = async (event) => {
+                const file = event.target.files[0]; if (!file) return;
+                showLoading('还原中...')
+                const formData = new FormData(); formData.append('file', file); formData.append('restore_sub', restoreOpts.restoreSub);
+                try {
+                    const res = await fetch('/api/restore', { method: 'POST', body: formData }); if (!res.ok) throw new Error("还原失败");
+                    await loadData();
+                    if (configData.sub_url) {
+                        showToast('正在应用配置...'); await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: configData.sub_url }) }); await loadData();
+                    }
+                    showToast('还原成功'); showSettings.value = false;
+                } catch (e) { showToast(e.message, "error") } finally { hideLoading() }
+            }
+
+            const downloadConfig = async (mode = 'downloading') => {
+                if (!configData.sub_backend) { showSettings.value = true; return showToast("请先设置转换后端", "error"); }
+                if (!form.sub_url) return showToast("请输入订阅链接", "error")
+                showLoading(mode === 'switching' ? '切换中...' : (mode === 'refreshing' ? '刷新中...' : '更新中...'))
+                try {
+                    await saveData();
+                    const res = await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: form.sub_url }) })
+                    if (!res.ok) { const d = await res.json(); throw new Error(d.detail); }
+                    await loadData(); showToast("订阅更新成功"); form.sub_url = ''; showInputCard.value = false; showSettings.value = false;
+                } catch (e) { showToast(e.message, "error") } finally { hideLoading() }
+            }
+
+            const restartContainers = async () => {
+                if (!configData.restart_containers) { showSettings.value = true; settingsTab.value = 'basic'; return showToast("请配置容器名称", "error"); }
+                showLoading('重启容器...')
+                try {
+                    const res = await fetch('/api/restart_containers', { method: 'POST' }); const data = await res.json();
+                    if (!res.ok) throw new Error(data.detail || "重启失败"); showToast(data.msg)
+                } catch (e) { showToast(e.message, "error") } finally { hideLoading() }
+            }
+
+            const saveSettings = async () => { showLoading('保存...'); try { await saveData(); showSettings.value = false; showToast('设置已保存'); } catch (e) { showToast("保存失败", "error"); } finally { hideLoading(); } }
+            const applyHistory = async (url) => { if (url === configData.sub_url) return showToast("当前正在使用"); form.sub_url = url; await downloadConfig('switching'); }
+            const refreshSubscription = async () => { if (!configData.sub_url) return showToast("无订阅", "error"); form.sub_url = configData.sub_url; await downloadConfig('refreshing'); }
+            const openSettings = () => { showSettings.value = true }
+            const toggleTheme = () => { isDark.value = !isDark.value; document.documentElement.classList.toggle('dark', isDark.value) }
+            
+            const toggleGroupEdit = () => { isGroupEditMode.value = !isGroupEditMode.value; selectedGroups.value = [] }
+            const isGroupSelected = (n) => selectedGroups.value.includes(n)
+            const toggleGroupSelection = (n) => { if (isGroupEditMode.value) isGroupSelected(n) ? selectedGroups.value.splice(selectedGroups.value.indexOf(n), 1) : selectedGroups.value.push(n) }
+            
+            const toggleRuleEdit = () => { isRuleEditMode.value = !isRuleEditMode.value; selectedRules.value = [] }
+            const isRuleSelected = (r) => selectedRules.value.includes(r)
+            const toggleRuleSelection = (r) => { if (isRuleEditMode.value) isRuleSelected(r) ? selectedRules.value.splice(selectedRules.value.indexOf(r), 1) : selectedRules.value.push(r) }
+            
+            const filteredRules = computed(() => {
+                if (!analysis.rules) return []
+                const key = searchKey.value.toLowerCase()
+                if (!key) return analysis.rules.slice(0, 100)
+                return analysis.rules.filter(r => r.toLowerCase().includes(key)).slice(0, 100)
+            })
+
+            onMounted(() => { document.documentElement.classList.add('dark'); loadData(); })
+
+            return {
+                isDark, toggleTheme, globalLoading, loadingText, showSettings, openSettings, currentTab, tabs,
+                form, configData, analysis, icons, toast, showToast, confirmModal,
+                groupInput, insertIcon, addNewGroup, isGroupEditMode, selectedGroups, toggleGroupEdit, isGroupSelected, toggleGroupSelection,
+                ruleInput, addNewRules, isRuleEditMode, selectedRules, toggleRuleEdit, isRuleSelected, toggleRuleSelection, ruleSearch, filteredRules,
+                initiateDelete, performDelete, saveSettings, downloadConfig, restoreConfig, restartContainers, applyHistory,
+                backupOpts, restoreOpts, backupUrl, logs, fetchLogs, logContainer, refreshSubscription, copyLogs,
+                settingsTab, showInputCard, formatBytes, formatDate, usagePercent
+            }
+        }
+    }).mount('#app')
+</script>
+</body>
+</html>

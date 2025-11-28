@@ -388,22 +388,26 @@
                     <div class="card-bg smooth-card rounded-xl p-6 flex-1 flex flex-col transition-colors">
                         <div class="flex justify-between items-center mb-4">
                             <h3 class="text-lg font-bold flex items-center gap-2">📂 现有组 ({{ analysis.groups.length }})</h3>
-                            <button @click="toggleGroupEdit" title="选择删除"
-                                :class="isGroupEditMode ? 'bg-red-500 text-white shadow-md' : 'text-gray-500 bg-gray-100 dark:bg-gray-700 hover:text-red-500'"
+                            <button @click="isGroupEditMode ? cancelGroupDelete() : toggleGroupEdit()" title="删除模式"
+                                :class="isGroupEditMode ? 'bg-gray-400 text-white hover:bg-gray-500 shadow-md' : 'text-gray-500 bg-gray-100 dark:bg-gray-700 hover:text-red-500'"
                                 class="w-10 h-10 rounded-lg flex items-center justify-center transition-colors text-lg btn-soft">
-                                <i class="fas fa-trash-alt"></i>
+                                <i :class="isGroupEditMode ? 'fas fa-times' : 'fas fa-trash-alt'"></i>
                             </button>
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                            <div v-for="g in analysis.groups" :key="g.name" @click="toggleGroupSelection(g.name)"
-                                :class="['p-4 rounded-xl border transition-colors relative cursor-pointer flex items-center gap-3 min-h-[80px]', isGroupSelected(g.name) ? 'card-selected border-red-500' : 'bg-white/80 dark:bg-gray-700 border-transparent hover:border-gray-200 dark:hover:border-gray-600']">
+                            <div v-for="g in analysis.groups" :key="g.name" 
+                                @click="isGroupEditMode && !['自动选择', '节点选择'].includes(g.name) ? toggleGroupSelection(g.name) : null"
+                                :class="['p-4 rounded-xl border transition-colors relative cursor-pointer flex items-center gap-3 min-h-[80px]', 
+                                    isGroupSelected(g.name) ? 'card-selected border-red-500' : 'bg-white/80 dark:bg-gray-700 border-transparent hover:border-gray-200 dark:hover:border-gray-600',
+                                    isGroupEditMode && ['自动选择', '节点选择'].includes(g.name) ? 'opacity-50 cursor-not-allowed' : '']">
                                 <div class="flex-1 min-w-0 flex flex-col justify-center pl-2">
                                     <div class="font-medium truncate text-lg">{{ g.name }}</div>
                                     <div class="text-xs text-gray-500 mt-1 flex items-center gap-1"><i class="fas fa-link"></i> {{ g.rule_count }} 条规则</div>
                                 </div>
                                 <div v-if="isGroupEditMode" class="absolute top-2 right-2">
-                                    <div :class="['w-5 h-5 rounded-full border flex items-center justify-center transition-colors', isGroupSelected(g.name) ? 'bg-red-500 border-red-500 text-white' : 'border-gray-400 bg-white']">
-                                        <i v-if="isGroupSelected(g.name)" class="fas fa-check text-xs"></i>
+                                    <div :class="['w-5 h-5 rounded-full border flex items-center justify-center transition-colors', 
+                                        isGroupSelected(g.name) ? 'bg-red-500 border-red-500 text-white' : 'border-gray-400 bg-white',
+                                        ['自动选择', '节点选择'].includes(g.name) ? 'opacity-0' : '']"> <i v-if="isGroupSelected(g.name)" class="fas fa-check text-xs"></i>
                                     </div>
                                 </div>
                             </div>
@@ -418,7 +422,7 @@
                         <div class="grid md:grid-cols-12 gap-6">
                             <div class="md:col-span-8 flex flex-col gap-4">
                                 <div>
-                                    <label class="block text-xs text-gray-500 mb-1">输入网址或ip地址/label>
+                                    <label class="block text-xs text-gray-500 mb-1">输入网址或ip地址</label>
                                     <textarea v-model="ruleInput.raw" rows="4"
                                         class="w-full p-3 rounded-lg bg-white/70 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 outline-none focus:ring-2 focus:ring-green-500 text-sm font-mono transition-all"
                                         placeholder="https://openai.com&#10;1.1.1.1"></textarea>
@@ -454,10 +458,10 @@
                             <div class="flex gap-2 items-center">
                                 <input v-model="ruleSearch" type="text" placeholder="搜索..."
                                     class="px-3 py-1 rounded bg-white/80 dark:bg-gray-700 text-sm border border-transparent focus:border-green-500 outline-none transition-all">
-                                <button @click="toggleRuleEdit" title="选择删除"
-                                    :class="isRuleEditMode ? 'bg-red-500 text-white shadow-md' : 'text-gray-500 bg-gray-100 dark:bg-gray-700 hover:text-red-500'"
+                                <button @click="isRuleEditMode ? cancelRuleDelete() : toggleRuleEdit()" title="选择删除"
+                                    :class="isRuleEditMode ? 'bg-gray-400 text-white hover:bg-gray-500 shadow-md' : 'text-gray-500 bg-gray-100 dark:bg-gray-700 hover:text-red-500'"
                                     class="w-10 h-10 rounded-lg flex items-center justify-center transition-colors text-lg btn-soft">
-                                    <i class="fas fa-trash-alt"></i>
+                                    <i :class="isRuleEditMode ? 'fas fa-times' : 'fas fa-trash-alt'"></i>
                                 </button>
                             </div>
                         </div>
@@ -946,10 +950,19 @@
                 localStorage.setItem('theme', isDark.value ? 'dark' : 'light');
             }
             
+            // [优化] 取消删除模式
+            const cancelGroupDelete = () => { isGroupEditMode.value = false; selectedGroups.value = []; }
             const toggleGroupEdit = () => { isGroupEditMode.value = !isGroupEditMode.value; selectedGroups.value = [] }
             const isGroupSelected = (n) => selectedGroups.value.includes(n)
-            const toggleGroupSelection = (n) => { if (isGroupEditMode.value) isGroupSelected(n) ? selectedGroups.value.splice(selectedGroups.value.indexOf(n), 1) : selectedGroups.value.push(n) }
+            const toggleGroupSelection = (n) => { 
+                // 确保用户只能在编辑模式下选择，且不能选择保留组
+                if (isGroupEditMode.value && !['自动选择', '节点选择'].includes(n)) {
+                    isGroupSelected(n) ? selectedGroups.value.splice(selectedGroups.value.indexOf(n), 1) : selectedGroups.value.push(n) 
+                }
+            }
             
+            // [优化] 取消删除模式
+            const cancelRuleDelete = () => { isRuleEditMode.value = false; selectedRules.value = []; }
             const toggleRuleEdit = () => { isRuleEditMode.value = !isRuleEditMode.value; selectedRules.value = [] }
             const isRuleSelected = (r) => selectedRules.value.includes(r)
             const toggleRuleSelection = (r) => { if (isRuleEditMode.value) isRuleSelected(r) ? selectedRules.value.splice(selectedRules.value.indexOf(r), 1) : selectedRules.value.push(r) }
@@ -973,7 +986,8 @@
                 ruleInput, addNewRules, isRuleEditMode, selectedRules, toggleRuleEdit, isRuleSelected, toggleRuleSelection, ruleSearch, filteredRules,
                 initiateDelete, performDelete, saveSettings, downloadConfig, restoreConfig, restartContainers, applyHistory,
                 backupOpts, restoreOpts, backupUrl, logs, fetchLogs, logContainer, refreshSubscription, copyLogs,
-                settingsTab, showInputCard, formatBytes, formatDate, usagePercent
+                settingsTab, showInputCard, formatBytes, formatDate, usagePercent,
+                cancelGroupDelete, cancelRuleDelete // 暴露取消删除方法
             }
         }
     }).mount('#app')

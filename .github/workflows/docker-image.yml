@@ -8,7 +8,7 @@ on:
 env:
   # TODO: 将 YOUR_DOCKERHUB_USERNAME 替换为你的 Docker Hub 用户名
   DOCKER_USERNAME: nikoyomi
-  IMAGE_NAME: clashweb-fix
+  IMAGE_NAME: clashweb
   TAG: latest
 
 jobs:
@@ -39,4 +39,5 @@ jobs:
           tags: ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}
           # 启用缓存，加速后续构建
           cache-from: type=gha
+
           cache-to: type=gha,mode=max

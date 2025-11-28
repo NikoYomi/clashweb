@@ -173,8 +173,7 @@
     </style>
 </head>
 
-<body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100 min-h-screen flex flex-col bg-dot-pattern">
-    <div id="app" class="flex flex-col min-h-screen relative">
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100 min-h-screen flex flex-col bg-dot-pattern" tabindex="-1" onselectstart="return false;"> <div id="app" class="flex flex-col min-h-screen relative">
 
         <div v-if="globalLoading"
             class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10000] flex items-center justify-center flex-col text-white transition-opacity duration-300">
@@ -399,7 +398,7 @@
                                 @click="isGroupEditMode && !['自动选择', '节点选择'].includes(g.name) ? toggleGroupSelection(g.name) : null"
                                 :class="['p-4 rounded-xl border transition-colors relative cursor-pointer flex items-center gap-3 min-h-[80px]', 
                                     isGroupSelected(g.name) ? 'card-selected border-red-500' : 'bg-white/80 dark:bg-gray-700 border-transparent hover:border-gray-200 dark:hover:border-gray-600',
-                                    isGroupEditMode && ['自动选择', '节点选择'].includes(g.name) ? 'opacity-50 cursor-not-allowed' : '']">
+                                    isGroupEditMode && ['自动选择', '节点选择'].includes(g.name) ? 'opacity-50 cursor-not-allowed' : '']"> 
                                 <div class="flex-1 min-w-0 flex flex-col justify-center pl-2">
                                     <div class="font-medium truncate text-lg">{{ g.name }}</div>
                                     <div class="text-xs text-gray-500 mt-1 flex items-center gap-1"><i class="fas fa-link"></i> {{ g.rule_count }} 条规则</div>
@@ -931,14 +930,11 @@
             // [主题修复/优化]
             const loadTheme = () => {
                 const savedTheme = localStorage.getItem('theme');
+                // 默认黑夜模式
                 if (savedTheme === 'light') {
                     isDark.value = false;
                     document.documentElement.classList.remove('dark');
-                } else if (savedTheme === 'dark') {
-                    isDark.value = true;
-                    document.documentElement.classList.add('dark');
-                } else {
-                    // 默认值
+                } else { 
                     isDark.value = true;
                     document.documentElement.classList.add('dark');
                 }

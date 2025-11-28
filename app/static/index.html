@@ -173,7 +173,8 @@
     </style>
 </head>
 
-<body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100 min-h-screen flex flex-col bg-dot-pattern" tabindex="-1" onselectstart="return false;"> <div id="app" class="flex flex-col min-h-screen relative">
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100 min-h-screen flex flex-col bg-dot-pattern" tabindex="-1" onselectstart="return false;">
+    <div id="app" class="flex flex-col min-h-screen relative">
 
         <div v-if="globalLoading"
             class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10000] flex items-center justify-center flex-col text-white transition-opacity duration-300">
@@ -596,14 +597,15 @@
                             class="flex flex-col items-center justify-center p-6 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors border border-blue-200 dark:border-blue-800 cursor-pointer text-center group h-32">
                             <i class="fas fa-download text-3xl mb-2"></i><span class="font-bold">下载备份</span>
                         </a>
-                        <label class="flex items-center gap-2 text-xs text-gray-500 justify-center"><input type="checkbox" v-model="backupOpts.includeSub"> 包含订阅链接</label>
+                        <button @click="promptAndDownloadBackup"
+                            class="bg-blue-600 text-white px-4 py-1 rounded-lg font-bold hover:bg-blue-700 transition-colors text-xs">自定义备份</button>
                     </div>
                     <div class="flex flex-col gap-2">
                         <div class="relative flex flex-col items-center justify-center p-6 rounded-xl bg-orange-50 dark:bg-orange-900/20 text-orange-600 hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors border border-orange-200 dark:border-orange-800 cursor-pointer text-center group h-32">
                             <input type="file" @change="restoreConfig" accept=".json" class="absolute inset-0 opacity-0 cursor-pointer z-10">
                             <i class="fas fa-upload text-3xl mb-2"></i><span class="font-bold">还原配置</span>
                         </div>
-                        <label class="flex items-center gap-2 text-xs text-gray-500 justify-center"><input type="checkbox" v-model="restoreOpts.restoreSub"> 覆盖当前订阅</label>
+                        <p class="text-xs text-gray-400 mt-1">还原将默认包含历史订阅</p>
                     </div>
                 </div>
             </div>
@@ -724,7 +726,9 @@
                 const used = (configData.user_info.upload || 0) + (configData.user_info.download || 0);
                 return Math.min(100, (used / configData.user_info.total) * 100);
             });
-            const backupUrl = computed(() => `/api/backup?include_sub=${backupOpts.includeSub}`)
+            
+            // [修改] 备份 URL 逻辑，默认不包含历史，但新增自定义备份按钮
+            const backupUrl = computed(() => `/api/backup?include_history=${backupOpts.includeSub}`)
             
             // 交互反馈
             const showLoading = (t) => { loadingText.value = t; globalLoading.value = true }
@@ -890,15 +894,25 @@
             const restoreConfig = async (event) => {
                 const file = event.target.files[0]; if (!file) return;
                 showLoading('还原中...')
-                const formData = new FormData(); formData.append('file', file); formData.append('restore_sub', restoreOpts.restoreSub);
+                const formData = new FormData(); 
+                formData.append('file', file); 
+                // [修改] 移除 restore_sub 参数
                 try {
-                    const res = await fetch('/api/restore', { method: 'POST', body: formData }); if (!res.ok) throw new Error("还原失败");
+                    const res = await fetch('/api/restore', { method: 'POST', body: formData }); 
+                    if (!res.ok) throw new Error("还原失败");
                     await loadData();
                     if (configData.sub_url) {
                         showToast('正在应用配置...'); await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: configData.sub_url }) }); await loadData();
                     }
                     showToast('还原成功'); showSettings.value = false;
                 } catch (e) { showToast(e.message, "error") } finally { hideLoading() }
+            }
+            
+            // [新增] 备份时提示是否包含历史订阅
+            const promptAndDownloadBackup = () => {
+                const includeHistory = window.confirm('是否在备份文件中包含订阅链接和历史记录？\n\n注意：如果选择“取消”，备份文件将不包含任何敏感订阅信息。');
+                // 触发下载，将选择结果作为参数传递
+                window.location.href = `/api/backup?include_history=${includeHistory}`;
             }
 
             const downloadConfig = async (mode = 'downloading') => {
@@ -930,7 +944,6 @@
             // [主题修复/优化]
             const loadTheme = () => {
                 const savedTheme = localStorage.getItem('theme');
-                // 默认黑夜模式
                 if (savedTheme === 'light') {
                     isDark.value = false;
                     document.documentElement.classList.remove('dark');
@@ -983,7 +996,7 @@
                 initiateDelete, performDelete, saveSettings, downloadConfig, restoreConfig, restartContainers, applyHistory,
                 backupOpts, restoreOpts, backupUrl, logs, fetchLogs, logContainer, refreshSubscription, copyLogs,
                 settingsTab, showInputCard, formatBytes, formatDate, usagePercent,
-                cancelGroupDelete, cancelRuleDelete // 暴露取消删除方法
+                cancelGroupDelete, cancelRuleDelete, promptAndDownloadBackup
             }
         }
     }).mount('#app')

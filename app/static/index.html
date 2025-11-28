@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ClashWeb 面板 - 修复版</title>
+    <title>ClashWeb </title>
     <link rel="icon" href="/images/favicon.ico">
 
     <script src="https://cdn.tailwindcss.com"></script>
@@ -251,7 +251,7 @@
                                     <i class="fas fa-exchange-alt"></i>
                                 </div>
 
-                                <h2 class="text-xl font-bold text-center mb-5">{{ configData.sub_url ? '切换订阅' : '初始化订阅' }}</h2>
+                                <h2 class="text-xl font-bold text-center mb-5">{{ configData.sub_url ? '更新订阅' : '初始化订阅' }}</h2>
 
                                 <div class="max-w-xl w-full mx-auto flex flex-col gap-4 relative z-10">
                                     <div class="relative group">
@@ -261,7 +261,7 @@
                                     </div>
                                     <button @click="downloadConfig"
                                         class="w-full py-3.5 bg-green-600 hover:bg-green-700 text-white font-bold shadow-md transition-colors flex items-center justify-center gap-2 rounded-xl text-base btn-soft">
-                                        <span>下载并应用配置</span><i class="fas fa-bolt"></i>
+                                        <span>下载并应用</span><i class="fas fa-bolt"></i>
                                     </button>
                                 </div>
                             </div>
@@ -357,11 +357,11 @@
                 </div>
                 <div v-if="currentTab === 'groups'" key="groups" class="flex flex-col gap-6">
                     <div class="card-bg smooth-card rounded-xl p-6 border-l-4 border-green-500 transition-colors">
-                        <h3 class="text-lg font-bold mb-4 flex items-center gap-2">➕ 添加自定义策略组</h3>
+                        <h3 class="text-lg font-bold mb-4 flex items-center gap-2">➕ 添加策略组</h3>
                         <div class="grid md:grid-cols-12 gap-6">
                             <div class="md:col-span-4 flex flex-col gap-4">
                                 <div>
-                                    <label class="block text-xs text-gray-500 mb-1">组名称 (点击右侧图标可插入)</label>
+                                    <label class="block text-xs text-gray-500 mb-1">输入名称 (点击右侧图标可插入)</label>
                                     <input v-model="groupInput.name" type="text" placeholder="例如：漏网之鱼"
                                         class="w-full p-3 rounded-lg bg-white/70 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 outline-none focus:ring-2 focus:ring-green-500 text-lg transition-all">
                                 </div>
@@ -369,10 +369,10 @@
                                     class="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-bold shadow-md transition-colors flex items-center justify-center gap-2 rounded-xl btn-soft">
                                     <i class="fas fa-plus"></i> 确认添加
                                 </button>
-                                <p class="text-xs text-gray-400 leading-relaxed">* 新组将自动包含订阅中的所有节点。</p>
+                                <p class="text-xs text-gray-400 leading-relaxed">* 新组将包含所有节点。</p>
                             </div>
                             <div class="md:col-span-8">
-                                <label class="block text-xs text-gray-500 mb-1">图标选择</label>
+                                <label class="block text-xs text-gray-500 mb-1">选择图标</label>
                                 <div class="bg-white/70 dark:bg-gray-900/50 p-2 rounded-xl border dark:border-gray-700 h-40 overflow-y-auto grid grid-cols-10 gap-1 content-start custom-scrollbar">
                                     <button v-for="icon in icons" :key="icon" @click="insertIcon(icon)"
                                         class="aspect-square rounded hover:bg-white dark:hover:bg-gray-700 transition-colors flex items-center justify-center border border-transparent hover:border-gray-200 dark:hover:border-gray-600 text-lg cursor-pointer select-none">
@@ -385,8 +385,8 @@
 
                     <div class="card-bg smooth-card rounded-xl p-6 flex-1 flex flex-col transition-colors">
                         <div class="flex justify-between items-center mb-4">
-                            <h3 class="text-lg font-bold flex items-center gap-2">📂 现有策略组 ({{ analysis.groups.length }})</h3>
-                            <button @click="toggleGroupEdit" title="删除模式"
+                            <h3 class="text-lg font-bold flex items-center gap-2">📂 现有组 ({{ analysis.groups.length }})</h3>
+                            <button @click="toggleGroupEdit" title="选择删除"
                                 :class="isGroupEditMode ? 'bg-red-500 text-white shadow-md' : 'text-gray-500 bg-gray-100 dark:bg-gray-700 hover:text-red-500'"
                                 class="w-10 h-10 rounded-lg flex items-center justify-center transition-colors text-lg btn-soft">
                                 <i class="fas fa-trash-alt"></i>
@@ -411,12 +411,12 @@
 
                 <div v-if="currentTab === 'rules'" key="rules" class="flex flex-col gap-6">
                     <div class="card-bg smooth-card rounded-xl p-6 border-l-4 border-green-500 transition-colors">
-                        <h3 class="text-lg font-bold mb-1 flex items-center gap-2">➕ 添加自定义规则</h3>
+                        <h3 class="text-lg font-bold mb-1 flex items-center gap-2">➕ 添加规则</h3>
                         <p class="text-xs text-gray-400 mb-4 ml-7">可批量添加，一行一个</p>
                         <div class="grid md:grid-cols-12 gap-6">
                             <div class="md:col-span-8 flex flex-col gap-4">
                                 <div>
-                                    <label class="block text-xs text-gray-500 mb-1">内容 (网址/ip)</label>
+                                    <label class="block text-xs text-gray-500 mb-1">输入网址/ip地址 /label>
                                     <textarea v-model="ruleInput.raw" rows="4"
                                         class="w-full p-3 rounded-lg bg-white/70 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 outline-none focus:ring-2 focus:ring-green-500 text-sm font-mono transition-all"
                                         placeholder="https://openai.com&#10;1.1.1.1"></textarea>
@@ -428,7 +428,7 @@
                             </div>
                             <div class="md:col-span-4 flex flex-col gap-4 mt-1">
                                 <div>
-                                    <label class="block text-xs text-gray-500 mb-1">目标策略组</label>
+                                    <label class="block text-xs text-gray-500 mb-1">目标组</label>
                                     <div class="relative">
                                         <select v-model="ruleInput.target"
                                             class="w-full p-3 rounded-lg bg-white/70 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 outline-none appearance-none text-sm transition-all">
@@ -438,8 +438,8 @@
                                     </div>
                                 </div>
                                 <div>
-                                    <label class="block text-xs text-gray-500 mb-1">备注 <span class="text-gray-400 text-[10px]">(非必要)</span></label>
-                                    <input v-model="ruleInput.remark" type="text" placeholder="例如：AI"
+                                    <label class="block text-xs text-gray-500 mb-1">备注 <span class="text-gray-400 text-[10px]">(可忽略)</span></label>
+                                    <input v-model="ruleInput.remark" type="text" placeholder="例如：ChatGpt"
                                         class="w-full p-3 rounded-lg bg-white/70 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 outline-none focus:ring-2 focus:ring-green-500 text-sm transition-all">
                                 </div>
                             </div>
@@ -452,7 +452,7 @@
                             <div class="flex gap-2 items-center">
                                 <input v-model="ruleSearch" type="text" placeholder="搜索..."
                                     class="px-3 py-1 rounded bg-white/80 dark:bg-gray-700 text-sm border border-transparent focus:border-green-500 outline-none transition-all">
-                                <button @click="toggleRuleEdit" title="删除模式"
+                                <button @click="toggleRuleEdit" title="选择删除"
                                     :class="isRuleEditMode ? 'bg-red-500 text-white shadow-md' : 'text-gray-500 bg-gray-100 dark:bg-gray-700 hover:text-red-500'"
                                     class="w-10 h-10 rounded-lg flex items-center justify-center transition-colors text-lg btn-soft">
                                     <i class="fas fa-trash-alt"></i>
@@ -478,7 +478,7 @@
 
                 <div v-if="currentTab === 'logs'" key="logs" class="flex flex-col gap-4 h-[700px]">
                     <div class="flex justify-between items-center">
-                        <h3 class="text-lg font-bold"><i class="fas fa-terminal text-primary"></i> 实时运行日志</h3>
+                        <h3 class="text-lg font-bold"><i class="fas fa-terminal text-primary"></i> 实时日志</h3>
                         <div class="flex gap-2">
                             <button @click="copyLogs"
                                 class="text-sm bg-gray-200 dark:bg-gray-700 px-3 py-1 rounded hover:bg-gray-300 transition-colors btn-soft">
@@ -519,15 +519,23 @@
                 </button>
             </div>
 
-            <div class="flex gap-2 mb-6 bg-white/75 dark:bg-gray-800/40 p-1 rounded-lg">
+            <div class="flex gap-4 mb-6 p-1 rounded-lg"> 
                 <button @click="settingsTab = 'basic'"
-                    :class="['px-4 py-2 text-sm font-medium rounded-lg transition-colors flex-1', settingsTab === 'basic' ? 'bg-white dark:bg-gray-600 text-primary shadow-sm' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700']">基本设置</button>
+                    :class="['px-5 py-2 text-sm font-bold rounded-lg transition-all flex-1', 
+                            settingsTab === 'basic' 
+                                ? 'bg-primary/90 text-white shadow-md' 
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 border border-transparent']">基本设置</button>
                 <button @click="settingsTab = 'history'"
-                    :class="['px-4 py-2 text-sm font-medium rounded-lg transition-colors flex-1', settingsTab === 'history' ? 'bg-white dark:bg-gray-600 text-primary shadow-sm' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700']">订阅历史</button>
+                    :class="['px-5 py-2 text-sm font-bold rounded-lg transition-all flex-1', 
+                            settingsTab === 'history' 
+                                ? 'bg-primary/90 text-white shadow-md' 
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 border border-transparent']">订阅历史</button>
                 <button @click="settingsTab = 'backup'"
-                    :class="['px-4 py-2 text-sm font-medium rounded-lg transition-colors flex-1', settingsTab === 'backup' ? 'bg-white dark:bg-gray-600 text-primary shadow-sm' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700']">备份还原</button>
+                    :class="['px-5 py-2 text-sm font-bold rounded-lg transition-all flex-1', 
+                            settingsTab === 'backup' 
+                                ? 'bg-primary/90 text-white shadow-md' 
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 border border-transparent']">备份还原</button>
             </div>
-
             <div v-show="settingsTab === 'basic'" class="flex-1">
                 <div class="mb-4">
                     <label class="block text-sm font-bold mb-2 text-gray-500">转换后端</label>

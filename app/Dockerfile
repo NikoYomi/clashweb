@@ -15,13 +15,13 @@ RUN sed -i 's/deb.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.li
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# --- 优化 C-3: 静态资源本地化 (国内 CDN 加速) ---
+# --- 优化 C-3: 静态资源本地化 ---
 RUN mkdir -p static/lib
 
 # 下载静态资源
-# 使用 饿了么CDN (npm.elemecdn.com) 替代 unpkg.com，解决国内下载 Vue 卡住的问题
+# [关键修改] 使用国际通用 CDN (unpkg.com) 替换国内 CDN (npm.elemecdn.com)，解决 GitHub Actions 构建时的 Network failure
 RUN apt-get update && apt-get install -y wget && \
-    wget -O static/lib/vue.global.js https://npm.elemecdn.com/vue@3/dist/vue.global.js && \
+    wget -O static/lib/vue.global.js https://unpkg.com/vue@3/dist/vue.global.js && \
     wget -O static/lib/tailwindcss.js https://cdn.tailwindcss.com && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 

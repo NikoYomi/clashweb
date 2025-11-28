@@ -646,10 +646,10 @@ async def analyze_config():
 
         groups_info = [{"name": g['name'], "type": g.get('type', 'select'), "rule_count": rule_usage.get(g['name'], 0)} for g in config.get('proxy-groups', [])]
         
-        proxies = config.get('proxies', [])
+        proxies = config.get('proxies'， [])
         region_map = {
-            "hk": "香港", "hong": "香港", "香港": "香港",
-            "tw": "台湾", "tai": "台湾", "台湾": "台湾",
+            "hk": "香港"， "hong": "香港", "香港": "香港",
+            "tw": "台湾"， "tai": "台湾", "台湾": "台湾",
             "jp": "日本", "japan": "日本", "日本": "日本",
             "us": "美国", "america": "美国", "united": "美国", "美国": "美国",
             "sg": "新加坡", "sing": "新加坡", "新加坡": "新加坡",
@@ -659,11 +659,11 @@ async def analyze_config():
             "ca": "加拿大", "can": "加拿大", "加拿大": "加拿大",
             "tr": "土耳其", "tur": "土耳其", "土": "土耳其",
             "fr": "法国", "france": "法国", "法": "法国",
-            "ru": "俄罗斯", "russia": "俄罗斯", "俄": "俄罗斯"
+            "ru": "俄罗斯"， "russia": "俄罗斯", "俄": "俄罗斯"
         }
         icons = {
-            "香港": "🇭🇰", "台湾": "🇹🇼", "日本": "🇯🇵", "美国": "🇺🇸", 
-            "新加坡": "🇸🇬", "韩国": "🇰🇷", "英国": "🇬🇧", "德国": "🇩🇪", 
+            "香港": "🇭🇰"， "台湾": "🇹🇼", "日本": "🇯🇵", "美国": "🇺🇸", 
+            "新加坡": "🇸🇬"， "韩国": "🇰🇷", "英国": "🇬🇧", "德国": "🇩🇪", 
             "加拿大": "🇨🇦", "土耳其": "🇹🇷", "法国": "🇫🇷", "俄罗斯": "🇷🇺", "其他": "🌐"
         }
         
@@ -671,21 +671,21 @@ async def analyze_config():
         for p in proxies:
             name = p.get('name', '').lower()
             found = False
-            for k, v in region_map.items():
-                if k in name:
-                    if v not in counts: counts[v] = {"name": v, "icon": icons.get(v, "🌐"), "count": 0}
+            for k, v 在 region_map.items():
+                if k 在 name:
+                    if v not 在 counts: counts[v] = {"name": v, "icon": icons.get(v, "🌐"), "count": 0}
                     counts[v]['count'] += 1
                     found = True
                     break
             if not found:
-                if "其他" not in counts: counts["其他"] = {"name": "其他", "icon": "🌐", "count": 0}
+                if "其他" not 在 counts: counts["其他"] = {"name": "其他", "icon": "🌐", "count": 0}
                 counts["其他"]['count'] += 1
         
         regions = sorted(counts.values(), key=lambda x: x['count'], reverse=True)
-        final_regions = [r for r in regions if r['name'] != '其他']
-        if "其他" in counts: final_regions.append(counts["其他"])
+        final_regions = [r for r 在 regions if r['name'] != '其他']
+        if "其他" 在 counts: final_regions.append(counts["其他"])
 
-        mtime = os.path.getmtime(OUTPUT_YAML)
+        mtime = os.path。getmtime(OUTPUT_YAML)
         ts_str = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
         
         return {
@@ -696,12 +696,12 @@ async def analyze_config():
             "regions": final_regions, 
             "total_nodes": len(proxies), 
             "update_time": ts_str,
-            "ts": datetime.now().timestamp()
+            "ts": datetime.当前()。timestamp()
         }
     except Exception as e: return {"status": "error", "msg": str(e)}
 
 # --- 静态文件挂载 ---
 if os.path.exists("images"):
-    app.mount("/images", StaticFiles(directory="images"), name="images")
+    app.mount("/images"， StaticFiles(directory="images"), name="images")
 
 app.mount("/", StaticFiles(directory="static", html=True), name="static")

@@ -50,7 +50,8 @@ if not os.path.exists(DATA_PATH):
         os.makedirs(DATA_PATH)
     except:
         pass
-# 使用 utf-8 编码初始化日志文件处理器
+
+# 使用 utf-8 编码初始化日志文件处理器，防止中文乱码
 file_handler = logging.FileHandler(LOG_FILE, encoding='utf-8')
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
@@ -128,11 +129,13 @@ def refresh_scheduler():
         if data.get('auto_update') and data.get('cron_expression'):
             cron_str = data['cron_expression']
             try:
+                # 尝试验证 Cron 表达式
                 trigger = CronTrigger.from_crontab(cron_str, timezone=tz)
                 scheduler.add_job(scheduled_update_task, trigger, id=job_id, replace_existing=True)
                 logger.info(f"✅ 定时任务已设置: [{cron_str}]")
             except Exception as e:
-                logger.error(f"Invalid cron expression: {e}")
+                # 捕获无效表达式，防止程序崩溃
+                logger.error(f"❌ Cron 表达式无效 '{cron_str}': {e}。定时任务未启动。建议检查表达式格式 (如 '0 4 * * *')")
         else:
             logger.info("⛔️ 定时任务已关闭")
     except Exception as e:
@@ -159,7 +162,7 @@ async def scheduled_update_task():
 
         logger.info("✅ 定时更新任务完成")
 
-        # 兼容中文逗号
+        # 自动重启容器逻辑 (兼容中文逗号)
         container_str = data.get('restart_containers', '').replace('，', ',')
         if container_str:
             try:
@@ -168,9 +171,9 @@ async def scheduled_update_task():
                 for name in targets:
                     try:
                         client.containers.get(name).restart()
-                        logger.info(f"✅ 容器已重启: {name}")
+                        logger.info(f"✅ (定时) 容器已重启: {name}")
                     except Exception as e:
-                        logger.error(f"❌ 重启容器 {name} 失败: {e}")
+                        logger.error(f"❌ (定时) 重启容器 {name} 失败: {e}")
             except Exception as e:
                 logger.error(f"Docker 连接失败: {e}")
                     
@@ -303,6 +306,7 @@ async def download_and_convert_config(url: str, data: dict) -> bool:
     # 应用补丁 (Patch)
     try:
         final_config = apply_patch(config, data)
+        # 强制允许 Unicode，防止中文乱码
         output_str = yaml.dump(final_config, allow_unicode=True, sort_keys=False, default_flow_style=False, width=float("inf"))
         yaml.safe_load(output_str) # 校验
     except Exception as e:
@@ -351,9 +355,10 @@ def get_rule_target(rule_str: str) -> str:
     return ""
 
 def clean_rule_for_clash(rule_str: str) -> str:
+    # 简单的清理，主要用于比对
     return rule_str.split('#')[0].strip()
 
-# --- Patch 逻辑 (关键修改：增强删除鲁棒性) ---
+# --- Patch 逻辑 (关键修正：确保自定义内容生效) ---
 def apply_patch(config: dict, patch: dict) -> dict:
     config['allow-lan'] = True
     config['external-controller'] = '0.0.0.0:9090'
@@ -367,7 +372,7 @@ def apply_patch(config: dict, patch: dict) -> dict:
             reference_proxies = g['proxies']
             break
 
-    # [优化] 删除组逻辑：增加 strip() 确保精准匹配
+    # [删除组逻辑]：使用 strip() 确保精准匹配
     del_groups_list = [n.strip() for n in (patch.get('del_groups') or []) if n.strip()]
     add_rules_raw = patch.get('add_rules') or []
 
@@ -394,7 +399,7 @@ def apply_patch(config: dict, patch: dict) -> dict:
                 valid_add_rules.append(rule)
         add_rules_raw = valid_add_rules
 
-    # 添加组
+    # [添加组逻辑]：插入到最前
     add_groups = patch.get('add_groups') or []
     if add_groups:
         existing_names = {g['name'] for g in config.get('proxy-groups', [])}
@@ -406,7 +411,7 @@ def apply_patch(config: dict, patch: dict) -> dict:
                      new_group['proxies'] = list(reference_proxies)
                 config.setdefault('proxy-groups', []).insert(0, new_group)
 
-    # [优化] 删除规则逻辑：关键字过滤
+    # [删除规则逻辑]：关键字过滤
     del_keywords = [k.strip() for k in (patch.get('del_rules') or []) if k.strip()]
     if del_keywords:
         final_rules = []
@@ -417,12 +422,12 @@ def apply_patch(config: dict, patch: dict) -> dict:
                 final_rules.append(rule)
         config['rules'] = final_rules
 
-    # 添加规则 (插入到最前)
+    # [添加规则逻辑]：强制插入到最前
+    # 修复：直接插入，不过度清洗，保留备注
     if add_rules_raw:
         for r in reversed(add_rules_raw): 
-            clean_r = clean_rule_for_clash(r)
-            if clean_r:
-                config.setdefault('rules', []).insert(0, clean_r)
+            if r and r.strip():
+                config.setdefault('rules', []).insert(0, r.strip())
              
     return config
 
@@ -477,24 +482,22 @@ async def save_data(data: ConfigModel):
         logger.error(f"保存配置失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# [新增] 删除/清空订阅接口
+# [清空订阅接口]
 @app.delete("/api/subscription")
 async def delete_subscription():
     try:
-        # 读取配置
         async with aiofiles.open(CONFIG_JSON, 'r', encoding='utf-8') as f:
             content = await f.read()
             data = json.loads(content)
         
-        # 清空关键字段
+        # 清空
         data['sub_url'] = ""
         data['user_info'] = UserInfo().dict()
         
-        # 保存 JSON
         async with aiofiles.open(CONFIG_JSON, 'w', encoding='utf-8') as f:
             await f.write(json.dumps(data, indent=2))
             
-        # 清空/重置 config.yaml 为最小可用配置，防止 Clash 报错
+        # 重置 YAML
         minimal_config = {
             "port": 7890,
             "socks-port": 7891,
@@ -547,10 +550,9 @@ async def restore_config(file: UploadFile = File(...)):
         if os.path.exists(CONFIG_JSON):
             with open(CONFIG_JSON, 'r', encoding='utf-8') as f: current_data = json.load(f)
         
-        # [逻辑修复] 如果备份文件中 sub_url 为空，则保留当前的 sub_url 和 history，防止覆盖
+        # 保护逻辑：如果备份没订阅，保留当前的
         if not backup_data.get('sub_url'):
             backup_data['sub_url'] = current_data.get('sub_url', "")
-            # 如果备份里没有历史记录，也保留当前的
             if not backup_data.get('sub_history'):
                 backup_data['sub_history'] = current_data.get('sub_history', [])
         
@@ -579,6 +581,7 @@ async def restart_containers():
             content = await f.read()
             data = json.loads(content)
         
+        # [修复] 兼容中文逗号
         container_str = data.get('restart_containers', '').replace('，', ',')
         targets = [n.strip() for n in container_str.split(',') if n.strip()]
 
@@ -615,9 +618,10 @@ async def download_config(req: DownloadRequest):
     data['sub_url'] = req.url
     
     try:
+        # 获取流量 & 下载
         fetched_info = await internal_process_subscription(req.url, data)
         
-        # [优化] 历史记录更新逻辑
+        # 历史记录逻辑
         airport_name = existing_history_entry.get("name", "未知机场") if existing_history_entry else "未知机场"
         traffic_info = existing_history_entry.get("info", {}) if existing_history_entry else {}
         
@@ -649,30 +653,27 @@ async def download_config(req: DownloadRequest):
             
     except Exception as e:
         logger.error(f"处理订阅出错: {e}")
-        # 即使出错也保存 URL
+        # 出错也要保存 URL
         async with aiofiles.open(CONFIG_JSON, 'w', encoding='utf-8') as f:
             await f.write(json.dumps(data, indent=2))
         raise HTTPException(status_code=500, detail=f"Processing Error: {str(e)}")
         
     return {"status": "success"}
 
-# --- 关键修改：分析接口 ---
 @app.get("/api/analysis")
 async def analyze_config():
     """
-    分析配置，并标记组/规则是 'native' (原生/机场提供的) 还是 'custom' (用户添加的)。
+    分析配置，并标记来源
     """
     if not os.path.exists(OUTPUT_YAML) or os.path.getsize(OUTPUT_YAML) == 0:
         return {"status": "empty", "groups": [], "rules": [], "rule_count": 0, "regions": []}
     
     try:
-        # 读取最终生成的 YAML
         async with aiofiles.open(OUTPUT_YAML, 'r', encoding='utf-8') as f:
             content = await f.read()
             config = yaml.safe_load(content)
             if not config: return {"status": "empty"}
         
-        # 读取用户配置 JSON，用于比对 Custom 数据
         user_config = {}
         try:
             if os.path.exists(CONFIG_JSON):
@@ -681,14 +682,12 @@ async def analyze_config():
                     user_config = json.loads(content)
         except: pass
 
-        # 1. 识别 Custom Groups
         custom_group_names = set()
         for g in user_config.get('add_groups', []):
             if g.get('name'):
                 custom_group_names.add(g['name'])
         
-        # 2. 识别 Custom Rules (需要 normalize 后比对)
-        custom_rules_map = {} # normalized -> raw
+        custom_rules_map = {} 
         for r in user_config.get('add_rules', []):
             clean = clean_rule_for_clash(r)
             custom_rules_map[clean] = r
@@ -696,15 +695,12 @@ async def analyze_config():
         rule_usage = Counter()
         final_display_rules = []
         
-        # 处理规则列表
         for r in config.get('rules', []):
             target = get_rule_target(r)
             if target: rule_usage[target] += 1
             
             clean_r = clean_rule_for_clash(r)
             is_custom = clean_r in custom_rules_map
-            
-            # 如果是自定义规则，优先使用用户输入的原始字符串(可能带备注)
             display_str = custom_rules_map[clean_r] if is_custom else r
             
             final_display_rules.append({
@@ -712,7 +708,6 @@ async def analyze_config():
                 "source": "custom" if is_custom else "native"
             })
 
-        # 处理策略组列表
         groups_info = []
         for g in config.get('proxy-groups', []):
             g_name = g['name']
@@ -721,10 +716,9 @@ async def analyze_config():
                 "name": g_name,
                 "type": g.get('type', 'select'),
                 "rule_count": rule_usage.get(g_name, 0),
-                "source": source  # [新增] 来源字段
+                "source": source 
             })
         
-        # 地区统计逻辑
         proxies = config.get('proxies', [])
         region_map = {
             "hk": "香港", "hong": "香港", "香港": "香港",
@@ -770,7 +764,7 @@ async def analyze_config():
         return {
             "status": "success", 
             "groups": groups_info, 
-            "rules": final_display_rules, # 现在的结构是 [{"str": "...", "source": "..."}]
+            "rules": final_display_rules, 
             "rule_count": len(final_display_rules), 
             "regions": final_regions, 
             "total_nodes": len(proxies), 

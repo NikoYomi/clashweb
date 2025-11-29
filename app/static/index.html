@@ -14,14 +14,30 @@
     <script>
         tailwind.config = {
             darkMode: 'class',
-            theme: { extend: { colors: { primary: '#6366f1', action: '#16a34a' } } }
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#6366f1',
+                        action: '#16a34a'
+                    }
+                }
+            }
         }
     </script>
 
     <style>
-        :root { --card-radius: 20px; }
-        html { overflow-y: scroll; }
-        body { transition: background-color .3s ease, color .3s ease; -webkit-font-smoothing: antialiased; }
+        :root {
+            --card-radius: 20px;
+        }
+
+        html {
+            overflow-y: scroll;
+        }
+
+        body {
+            transition: background-color .3s ease, color .3s ease;
+            -webkit-font-smoothing: antialiased;
+        }
 
         /* 卡片基础样式 */
         .card-bg {
@@ -31,8 +47,10 @@
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
             transition: box-shadow .3s ease;
         }
+
         html.dark .card-bg {
-            background: #1e293b;
+            background: #1f2937;
+            /* Gray-800 */
             border: 1px solid rgba(255, 255, 255, 0.08);
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
         }
@@ -41,16 +59,37 @@
             border-radius: calc(var(--card-radius) - 2px);
             transition: all .3s ease;
         }
-        .smooth-card:hover { box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15); }
-        html.dark .smooth-card:hover { box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6); border-color: rgba(99, 102, 241, 0.3); }
+
+        .smooth-card:hover {
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+        }
+
+        html.dark .smooth-card:hover {
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+            border-color: rgba(99, 102, 241, 0.3);
+        }
 
         /* 选中状态 */
-        .card-selected { border-color: #ef4444 !important; background-color: rgba(239, 68, 68, 0.05) !important; }
-        html.dark .card-selected { background-color: rgba(239, 68, 68, 0.15) !important; }
+        .card-selected {
+            border-color: #ef4444 !important;
+            background-color: rgba(239, 68, 68, 0.05) !important;
+        }
+
+        html.dark .card-selected {
+            background-color: rgba(239, 68, 68, 0.15) !important;
+        }
 
         /* 按钮与交互 */
-        .btn-soft { border-radius: 10px; padding: .5rem .8rem; transition: all .2s ease; }
-        .btn-soft:active { opacity: 0.7; transform: scale(0.98); }
+        .btn-soft {
+            border-radius: 10px;
+            padding: .5rem .8rem;
+            transition: all .2s ease;
+        }
+
+        .btn-soft:active {
+            opacity: 0.7;
+            transform: scale(0.98);
+        }
 
         /* 背景纹理 */
         .bg-dot-pattern {
@@ -59,39 +98,120 @@
             background-size: 24px 24px;
             background-attachment: fixed;
         }
+
         html.dark .bg-dot-pattern {
-            background-color: #0f1724;
-            background-image: radial-gradient(rgba(99, 102, 241, 0.15) 0.5px, transparent 0.5px);
+            background-color: #111827;
+            /* Gray-900 */
+            background-image: radial-gradient(rgba(255, 255, 255, 0.1) 0.5px, transparent 0.5px);
         }
 
         /* 区域卡片 */
-        .region-card { position: relative; overflow: hidden; padding: 14px; border-radius: 16px; transition: border-color .2s; }
-        .region-card:hover { border-color: rgba(99, 102, 241, 0.5); }
+        .region-card {
+            position: relative;
+            overflow: hidden;
+            padding: 14px;
+            border-radius: 16px;
+            transition: border-color .2s;
+        }
+
+        .region-card:hover {
+            border-color: rgba(99, 102, 241, 0.5);
+        }
+
         .region-flag-bg {
-            position: absolute; right: -10px; bottom: -20px; font-size: 5.5rem; opacity: 0.06;
-            filter: grayscale(20%); pointer-events: none; transform: rotate(-12deg);
+            position: absolute;
+            right: -10px;
+            bottom: -20px;
+            font-size: 5.5rem;
+            opacity: 0.06;
+            filter: grayscale(20%);
+            pointer-events: none;
+            transform: rotate(-12deg);
         }
 
         /* 动画 */
-        .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
-        .fade-enter-from, .fade-leave-to { opacity: 0; }
-        .switch-enter-active, .switch-leave-active { transition: opacity 0.3s ease, transform 0.3s ease; }
-        .switch-enter-from, .switch-leave-to { opacity: 0; transform: scale(0.98); }
-        .toast-enter-active, .toast-leave-active { transition: all .3s ease; }
-        .toast-enter-from, .toast-leave-to { opacity: 0; transform: translate(-50%, -20px); }
+        .fade-enter-active,
+        .fade-leave-active {
+            transition: opacity 0.2s ease;
+        }
 
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(156, 163, 175, 0.5); border-radius: 3px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(156, 163, 175, 0.8); }
-        .terminal-logs { font-family: 'Consolas', monospace; font-size: 0.85rem; line-height: 1.5; }
-        .modal-mask { z-index: 9000; }
+        .fade-enter-from,
+        .fade-leave-to {
+            opacity: 0;
+        }
+
+        .switch-enter-active,
+        .switch-leave-active {
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        .switch-enter-from,
+        .switch-leave-to {
+            opacity: 0;
+            transform: scale(0.98);
+        }
+
+        .toast-enter-active,
+        .toast-leave-active {
+            transition: all .3s ease;
+        }
+
+        .toast-enter-from,
+        .toast-leave-to {
+            opacity: 0;
+            transform: translate(-50%, -20px);
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(156, 163, 175, 0.5);
+            border-radius: 3px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(156, 163, 175, 0.8);
+        }
+
+        .terminal-logs {
+            font-family: 'Consolas', monospace;
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+
+        .modal-mask {
+            z-index: 9000;
+        }
 
         /* 标签样式 */
-        .badge-native { background: rgba(59, 130, 246, 0.1); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.2); }
-        html.dark .badge-native { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
-        .badge-custom { background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2); }
-        html.dark .badge-custom { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+        .badge-native {
+            background: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+        }
+
+        html.dark .badge-native {
+            background: rgba(59, 130, 246, 0.2);
+            color: #60a5fa;
+        }
+
+        .badge-custom {
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        html.dark .badge-custom {
+            background: rgba(16, 185, 129, 0.2);
+            color: #34d399;
+        }
     </style>
 </head>
 
@@ -135,8 +255,7 @@
         <main class="container mx-auto px-4 py-8 max-w-5xl flex-1 flex flex-col gap-6 relative z-10">
             <div class="flex justify-between items-center w-full">
                 <div class="flex gap-2 bg-gray-200/50 dark:bg-gray-800/50 p-1 rounded-xl overflow-x-auto no-scrollbar transition-colors">
-                    <button v-for="tab in tabs" :key="tab.id" @click="currentTab = tab.id"
-                        :class="['px-5 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap', currentTab === tab.id ? 'bg-white dark:bg-gray-700 shadow-sm text-primary' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300']">
+                    <button v-for="tab in tabs" :key="tab.id" @click="currentTab = tab.id" :class="['px-5 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap', currentTab === tab.id ? 'bg-white dark:bg-gray-700 shadow-sm text-primary' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300']">
                         <i :class="tab.icon" class="mr-2"></i> {{ tab.name }}
                     </button>
                 </div>
@@ -272,23 +391,21 @@
                             </button>
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                            <div v-for="g in analysis.groups" :key="g.name" 
-                                @click="isGroupEditMode && !['自动选择', '节点选择'].includes(g.name) ? toggleGroupSelection(g.name) : null"
-                                :class="['p-4 rounded-xl border transition-colors relative cursor-pointer flex flex-col min-h-[90px] justify-between', 
+                            <div v-for="g in analysis.groups" :key="g.name" @click="isGroupEditMode && !['自动选择', '节点选择'].includes(g.name) ? toggleGroupSelection(g.name) : null" :class="['p-4 rounded-xl border transition-colors relative cursor-pointer flex flex-col min-h-[90px] justify-between', 
                                     isGroupSelected(g.name) ? 'card-selected border-red-500' : 'bg-white/80 dark:bg-gray-700 border-transparent hover:border-gray-200 dark:hover:border-gray-600',
-                                    isGroupEditMode && ['自动选择', '节点选择'].includes(g.name) ? 'opacity-50 cursor-not-allowed' : '']"> 
-                                
+                                    isGroupEditMode && ['自动选择', '节点选择'].includes(g.name) ? 'opacity-50 cursor-not-allowed' : '']">
+
                                 <div class="flex justify-between items-start gap-2">
                                     <div class="font-medium truncate text-lg flex-1" :title="g.name">{{ g.name }}</div>
                                     <span v-if="g.source === 'native'" class="text-[10px] px-1.5 py-0.5 rounded badge-native whitespace-nowrap">☁️ 原生</span>
                                     <span v-else class="text-[10px] px-1.5 py-0.5 rounded badge-custom whitespace-nowrap">👤 自定义</span>
                                 </div>
                                 <div class="text-xs text-gray-500 mt-2 flex items-center gap-1"><i class="fas fa-link"></i> {{ g.rule_count }} 条规则</div>
-                                
+
                                 <div v-if="isGroupEditMode" class="absolute top-2 right-2">
                                     <div :class="['w-5 h-5 rounded-full border flex items-center justify-center transition-colors', 
                                         isGroupSelected(g.name) ? 'bg-red-500 border-red-500 text-white' : 'border-gray-400 bg-white',
-                                        ['自动选择', '节点选择'].includes(g.name) ? 'opacity-0' : '']"> 
+                                        ['自动选择', '节点选择'].includes(g.name) ? 'opacity-0' : '']">
                                         <i v-if="isGroupSelected(g.name)" class="fas fa-check text-xs"></i>
                                     </div>
                                 </div>
@@ -296,6 +413,7 @@
                         </div>
                     </div>
                 </div>
+
                 <div v-if="currentTab === 'rules'" key="rules" class="flex flex-col gap-6">
                     <div class="card-bg smooth-card rounded-xl p-6 border-l-4 border-green-500 transition-colors">
                         <h3 class="text-lg font-bold mb-1 flex items-center gap-2">➕ 添加自定义规则</h3>
@@ -381,9 +499,8 @@
                     <button @click="showSettings = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"><i class="fas fa-times text-xl"></i></button>
                 </div>
 
-                <div class="flex gap-2 mb-6 p-1 bg-gray-100 dark:bg-gray-700/50 rounded-xl"> 
-                    <button v-for="t in ['basic','history','backup']" :key="t" @click="settingsTab = t" 
-                        :class="['flex-1 py-2 text-sm font-bold rounded-lg transition-all', settingsTab === t ? 'bg-white dark:bg-gray-600 shadow-sm text-primary' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700']">
+                <div class="flex gap-2 mb-6 p-1 bg-gray-100 dark:bg-gray-700/50 rounded-xl">
+                    <button v-for="t in ['basic','history','backup']" :key="t" @click="settingsTab = t" :class="['flex-1 py-2 text-sm font-bold rounded-lg transition-all', settingsTab === t ? 'bg-white dark:bg-gray-600 shadow-sm text-primary' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700']">
                         {{ t === 'basic' ? '基础设置' : (t === 'history' ? '订阅历史' : '备份还原') }}
                     </button>
                 </div>
@@ -466,55 +583,175 @@
     </div>
 
     <script>
-        const { createApp, ref, reactive, computed, onMounted, watch } = Vue
+        const {
+            createApp,
+            ref,
+            reactive,
+            computed,
+            onMounted,
+            watch
+        } = Vue
 
         createApp({
             setup() {
                 const isDark = ref(true)
-                const debounce = (fn, delay) => { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), delay); }; };
-                const globalLoading = ref(false), loadingText = ref('')
-                const showSettings = ref(false), currentTab = ref('home'), settingsTab = ref('basic'), showInputCard = ref(false)
-                const toast = reactive({ show: false, msg: '', type: 'success' })
-                const confirmModal = reactive({ show: false, title: '', msg: '', action: null })
-                const logs = ref([]), logContainer = ref(null); let logInterval = null
+                // 防抖函数
+                const debounce = (fn, delay) => {
+                    let t;
+                    return (...args) => {
+                        clearTimeout(t);
+                        t = setTimeout(() => fn(...args), delay);
+                    };
+                };
+
+                const globalLoading = ref(false),
+                    loadingText = ref('')
+                const showSettings = ref(false),
+                    currentTab = ref('home'),
+                    settingsTab = ref('basic'),
+                    showInputCard = ref(false)
+                const toast = reactive({
+                    show: false,
+                    msg: '',
+                    type: 'success'
+                })
+                const confirmModal = reactive({
+                    show: false,
+                    title: '',
+                    msg: '',
+                    action: null
+                })
+                const logs = ref([]),
+                    logContainer = ref(null);
+                let logInterval = null
+
                 const icons = ['🚀', '✈️', '☁️', '🔒', '🛡️', '📶', '🌐', '🏠', '🏢', '📺', '🎬', '🎵', '🎮', '🍎', '🤖', '🐙', '🐱', '🦄', '🔥', '⚡', '💬', '🛒', '💾', '📹', '📷', '📞', '🔞', '🛑', '✅', '♻️', '♾️', '📡', '🚦', '🚨', '🚧', '🔧', '🔨', '⚙️', '💎', '🔑', '🔔', '📢', '🦠', '🧬', '💊', '💉', '🩸', '🔭', '🔬', '🌡️', '🧪', '🧫', '🧬', '🧸', '🎁', '🎈', '🎉', '🎨', '🎭', '🎪']
-                const tabs = [{ id: 'home', name: '仪表盘', icon: 'fas fa-tachometer-alt' }, { id: 'groups', name: '代理组', icon: 'fas fa-layer-group' }, { id: 'rules', name: '规则管理', icon: 'fas fa-list-ul' }, { id: 'logs', name: '运行日志', icon: 'fas fa-terminal' }]
-                const form = reactive({ sub_url: '' })
-                const configData = reactive({ sub_backend: '', sub_url: '', restart_containers: '', auto_update: false, cron_expression: '0 4 * * *', user_info: {}, sub_history: [], add_groups: [], del_groups: [], add_rules: [], del_rules: [] })
-                const analysis = reactive({ groups: [], rules: [], rule_count: 0, regions: [], total_nodes: 0, update_time: '' })
-                const groupInput = reactive({ name: '' }), isGroupEditMode = ref(false), selectedGroups = ref([])
-                const ruleInput = reactive({ raw: '', target: '', remark: '' }), isRuleEditMode = ref(false), selectedRules = ref([]), ruleSearch = ref(''), searchKey = ref('')
-                
+                const tabs = [{
+                    id: 'home',
+                    name: '仪表盘',
+                    icon: 'fas fa-tachometer-alt'
+                }, {
+                    id: 'groups',
+                    name: '代理组',
+                    icon: 'fas fa-layer-group'
+                }, {
+                    id: 'rules',
+                    name: '规则管理',
+                    icon: 'fas fa-list-ul'
+                }, {
+                    id: 'logs',
+                    name: '运行日志',
+                    icon: 'fas fa-terminal'
+                }]
+
+                const form = reactive({
+                    sub_url: ''
+                })
+                const configData = reactive({
+                    sub_backend: '',
+                    sub_url: '',
+                    restart_containers: '',
+                    auto_update: false,
+                    cron_expression: '0 4 * * *',
+                    user_info: {},
+                    sub_history: [],
+                    add_groups: [],
+                    del_groups: [],
+                    add_rules: [],
+                    del_rules: []
+                })
+                const analysis = reactive({
+                    groups: [],
+                    rules: [],
+                    rule_count: 0,
+                    regions: [],
+                    total_nodes: 0,
+                    update_time: ''
+                })
+
+                const groupInput = reactive({
+                        name: ''
+                    }),
+                    isGroupEditMode = ref(false),
+                    selectedGroups = ref([])
+                const ruleInput = reactive({
+                        raw: '',
+                        target: '',
+                        remark: ''
+                    }),
+                    isRuleEditMode = ref(false),
+                    selectedRules = ref([]),
+                    ruleSearch = ref(''),
+                    searchKey = ref('')
+
                 watch(ruleSearch, debounce((v) => searchKey.value = v, 300))
 
-                const formatBytes = (bytes) => { if (!bytes) return '0 B'; const k = 1024, i = Math.floor(Math.log(bytes) / Math.log(k)); return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + ['B', 'KB', 'MB', 'GB', 'TB'][i]; }
+                const formatBytes = (bytes) => {
+                    if (!bytes) return '0 B';
+                    const k = 1024,
+                        i = Math.floor(Math.log(bytes) / Math.log(k));
+                    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + ['B', 'KB', 'MB', 'GB', 'TB'][i];
+                }
                 const formatDate = (ts) => (!ts) ? '无限期' : new Date(ts * 1000).toLocaleDateString()
-                const usagePercent = computed(() => { if (!configData.user_info?.total) return 0; return Math.min(100, ((configData.user_info.upload + configData.user_info.download) / configData.user_info.total) * 100); })
-                const showLoading = (t) => { loadingText.value = t; globalLoading.value = true }, hideLoading = () => globalLoading.value = false
-                const showToast = (msg, type = 'success') => { toast.msg = msg; toast.type = type; toast.show = true; setTimeout(() => toast.show = false, 2500); }
+                const usagePercent = computed(() => {
+                    if (!configData.user_info?.total) return 0;
+                    return Math.min(100, ((configData.user_info.upload + configData.user_info.download) / configData.user_info.total) * 100);
+                })
+                const showLoading = (t) => {
+                        loadingText.value = t;
+                        globalLoading.value = true
+                    },
+                    hideLoading = () => globalLoading.value = false
+                const showToast = (msg, type = 'success') => {
+                    toast.msg = msg;
+                    toast.type = type;
+                    toast.show = true;
+                    setTimeout(() => toast.show = false, 2500);
+                }
+
+                const openSettings = () => {
+                    showSettings.value = true
+                }
 
                 const loadData = async () => {
                     try {
                         const ts = new Date().getTime()
                         const [d, a] = await Promise.all([fetch('/api/data?t=' + ts).then(r => r.json()), fetch('/api/analysis?t=' + ts).then(r => r.json())])
-                        Object.assign(configData, { user_info: {}, sub_history: [], add_groups: [], del_groups: [], add_rules: [], del_rules: [], ...d })
-                        if (configData.sub_url) showInputCard.value = false; else showInputCard.value = true;
+                        Object.assign(configData, {
+                            user_info: {},
+                            sub_history: [],
+                            add_groups: [],
+                            del_groups: [],
+                            add_rules: [],
+                            del_rules: [],
+                            ...d
+                        })
+                        if (configData.sub_url) showInputCard.value = false;
+                        else showInputCard.value = true;
                         if (a.status === 'success') Object.assign(analysis, a)
                         if (analysis.groups.length > 0 && !ruleInput.target) ruleInput.target = analysis.groups[0].name
-                    } catch (e) { console.error(e) }
+                    } catch (e) {
+                        console.error(e)
+                    }
                 }
 
-                const saveData = async () => { const res = await fetch('/api/data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(configData) }); if (!res.ok) throw new Error("保存失败"); }
-                
-                // 核心逻辑：区分 Custom 与 Native 的删除
+                const saveData = async () => {
+                    const res = await fetch('/api/data', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(configData)
+                    });
+                    if (!res.ok) throw new Error("保存失败");
+                }
+
+                // --- 删除逻辑 ---
                 const initiateDelete = () => {
                     const count = isGroupEditMode.value ? selectedGroups.value.length : selectedRules.value.length;
                     if (count === 0) return;
-                    
-                    // 构建提示信息
                     let msg = `即将对 <b>${count}</b> 项内容执行删除操作。<br><br>`;
                     msg += `<span class="text-xs text-gray-400">注意：<br>• 👤 <b>自定义</b>项目将被彻底移除。<br>• ☁️ <b>原生</b>项目将被加入屏蔽名单(隐藏)。</span>`;
-                    
                     confirmModal.title = "批量删除确认";
                     confirmModal.msg = msg;
                     confirmModal.action = performDelete;
@@ -522,30 +759,32 @@
                 }
 
                 const performDelete = async () => {
-                    confirmModal.show = false; showLoading('正在处理...');
+                    confirmModal.show = false;
+                    showLoading('正在处理...');
                     try {
                         if (isGroupEditMode.value) {
-                            // 遍历选中的组对象（注意：toggle时存的是完整对象或名称，这里假设界面传的是name，需要去analysis里找source）
                             for (const name of selectedGroups.value) {
                                 const groupInfo = analysis.groups.find(g => g.name === name);
                                 const isCustom = groupInfo && groupInfo.source === 'custom';
-                                
                                 if (isCustom) {
-                                    // 自定义组：从 add_groups 移除
                                     const idx = configData.add_groups.findIndex(g => g.name === name);
                                     if (idx > -1) configData.add_groups.splice(idx, 1);
-                                    // 顺便移除规则中指向该组的
-                                    configData.add_rules = configData.add_rules.filter(r => getRuleTarget(r) !== name);
+                                    configData.add_rules = configData.add_rules.filter(r => {
+                                        try {
+                                            return r.split('#')[0].split(',')[2].trim() !== name
+                                        } catch {
+                                            return true
+                                        }
+                                    });
                                 } else {
-                                    // 原生组：加入 del_groups
                                     if (!configData.del_groups.includes(name)) configData.del_groups.push(name);
                                 }
                             }
-                            selectedGroups.value = []; isGroupEditMode.value = false;
+                            selectedGroups.value = [];
+                            isGroupEditMode.value = false;
                         } else {
-                            // 删除规则
                             for (const ruleItem of selectedRules.value) {
-                                // ruleItem 结构: { str: "...", source: "..." }
+                                // ruleItem 结构 {str: "...", source: "..."}
                                 const cleanStr = ruleItem.str.split('#')[0].trim();
                                 if (ruleItem.source === 'custom') {
                                     const idx = configData.add_rules.findIndex(r => r.split('#')[0].trim() === cleanStr);
@@ -554,13 +793,26 @@
                                     if (!configData.del_rules.includes(cleanStr)) configData.del_rules.push(cleanStr);
                                 }
                             }
-                            selectedRules.value = []; isRuleEditMode.value = false;
+                            selectedRules.value = [];
+                            isRuleEditMode.value = false;
                         }
-                        await saveData(); 
-                        // 触发一次下载以应用变更（重新生成yaml）
-                        if(configData.sub_url) await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: configData.sub_url }) });
-                        await loadData(); showToast('操作成功');
-                    } catch (e) { showToast(e.message, 'error') } finally { hideLoading() }
+                        await saveData();
+                        if (configData.sub_url) await fetch('/api/download', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                url: configData.sub_url
+                            })
+                        });
+                        await loadData();
+                        showToast('操作成功');
+                    } catch (e) {
+                        showToast(e.message, 'error')
+                    } finally {
+                        hideLoading()
+                    }
                 }
 
                 const confirmClearSub = () => {
@@ -571,128 +823,293 @@
                 }
 
                 const clearSubscription = async () => {
-                    confirmModal.show = false; showLoading('正在重置...');
+                    confirmModal.show = false;
+                    showLoading('正在重置...');
                     try {
-                        const res = await fetch('/api/subscription', { method: 'DELETE' });
+                        const res = await fetch('/api/subscription', {
+                            method: 'DELETE'
+                        });
                         if (!res.ok) throw new Error("重置失败");
                         await loadData();
                         showToast("订阅已清空");
-                    } catch(e) { showToast(e.message, 'error') } finally { hideLoading() }
+                    } catch (e) {
+                        showToast(e.message, 'error')
+                    } finally {
+                        hideLoading()
+                    }
                 }
 
-                // 其他逻辑保持不变
-                const fetchLogs = async () => { try { const res = await fetch('/api/logs?lines=200'); const d = await res.json(); logs.value = d.logs; if(logContainer.value) setTimeout(() => logContainer.value.scrollTop = logContainer.value.scrollHeight, 0) } catch {} }
-                watch(currentTab, (v) => { if(v==='logs'){ fetchLogs(); logInterval=setInterval(fetchLogs, 5000) } else clearInterval(logInterval) })
-                const copyLogs = () => navigator.clipboard.writeText(logs.value.join('\n')).then(()=>showToast('已复制'))
-                
-                const getRuleTarget = (s) => { try { return s.split('#')[0].split(',')[2].trim() } catch { return '' } }
-                const cleanRule = (s) => { 
-                    if(!s.trim()) return null; 
-                    // 简易正则判断
-                    if(s.includes(',')) return { type: 'RAW', value: s }; // 用户可能直接贴完整规则
-                    // 否则尝试智能识别域名/IP... (略，保持原有逻辑)
-                    return { type: 'DOMAIN-SUFFIX', value: s.trim() }; 
+                // --- 基础功能 ---
+                const fetchLogs = async () => {
+                    try {
+                        const res = await fetch('/api/logs?lines=200');
+                        const d = await res.json();
+                        logs.value = d.logs;
+                        if (logContainer.value) setTimeout(() => logContainer.value.scrollTop = logContainer.value.scrollHeight, 0)
+                    } catch {}
+                }
+                watch(currentTab, (v) => {
+                    if (v === 'logs') {
+                        fetchLogs();
+                        logInterval = setInterval(fetchLogs, 5000)
+                    } else clearInterval(logInterval)
+                })
+                const copyLogs = () => navigator.clipboard.writeText(logs.value.join('\n')).then(() => showToast('已复制'))
+
+                const getRuleTarget = (s) => {
+                    try {
+                        return s.split('#')[0].split(',')[2].trim()
+                    } catch {
+                        return ''
+                    }
+                }
+                const cleanRule = (s) => {
+                    if (!s.trim()) return null;
+                    if (s.includes(',')) return {
+                        type: 'RAW',
+                        value: s
+                    };
+                    return {
+                        type: 'DOMAIN-SUFFIX',
+                        value: s.trim()
+                    };
                 }
                 const addNewRules = async () => {
-                    if(!ruleInput.raw || !ruleInput.target) return showToast("请填写完整", "error");
+                    if (!ruleInput.raw || !ruleInput.target) return showToast("请填写完整", "error");
                     const lines = ruleInput.raw.split('\n');
-                    for(let l of lines) {
-                        if(!l.trim()) continue;
+                    for (let l of lines) {
+                        if (!l.trim()) continue;
                         let r = l.trim();
-                        // 简单处理：如果用户没写类型，默认DOMAIN-SUFFIX，实际建议用更强正则
-                        if(!r.includes(',')) r = `DOMAIN-SUFFIX,${r},${ruleInput.target}`;
+                        if (!r.includes(',')) r = `DOMAIN-SUFFIX,${r},${ruleInput.target}`;
                         else {
-                            // 如果用户贴了完整规则但没改策略组，强制替换策略组
                             let parts = r.split(',');
-                            if(parts.length >= 2) r = `${parts[0]},${parts[1]},${ruleInput.target}`;
+                            if (parts.length >= 2) r = `${parts[0]},${parts[1]},${ruleInput.target}`;
                         }
-                        if(ruleInput.remark) r += ` # ${ruleInput.remark}`;
+                        if (ruleInput.remark) r += ` # ${ruleInput.remark}`;
                         configData.add_rules.unshift(r);
                     }
-                    await saveData(); await loadData(); ruleInput.raw=''; showToast("规则已添加");
+                    await saveData();
+                    await loadData();
+                    ruleInput.raw = '';
+                    showToast("规则已添加");
                 }
                 const addNewGroup = async () => {
-                    if(!groupInput.name) return;
-                    configData.add_groups.unshift({name: groupInput.name, type: 'select', proxies: ['DIRECT','REJECT']});
-                    await saveData(); await loadData(); groupInput.name=''; showToast("组已添加");
+                    if (!groupInput.name) return;
+                    configData.add_groups.unshift({
+                        name: groupInput.name,
+                        type: 'select',
+                        proxies: ['DIRECT', 'REJECT']
+                    });
+                    await saveData();
+                    await loadData();
+                    groupInput.name = '';
+                    showToast("组已添加");
                 }
-                
+
                 const downloadConfig = async () => {
-                    if(!configData.sub_backend) { showSettings.value=true; return showToast("请先设置后端","error"); }
-                    if(!form.sub_url) return showToast("请输入链接","error");
+                    if (!configData.sub_backend) {
+                        showSettings.value = true;
+                        return showToast("请先设置后端", "error");
+                    }
+                    if (!form.sub_url) return showToast("请输入链接", "error");
                     showLoading('更新中...');
                     try {
-                        configData.sub_url = form.sub_url; // 确保保存的是输入框的值
+                        configData.sub_url = form.sub_url;
                         await saveData();
-                        const res = await fetch('/api/download', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:form.sub_url})});
-                        if(!res.ok) throw new Error((await res.json()).detail);
-                        await loadData(); showToast("更新成功");
-                    } catch(e){ showToast(e.message,'error') } finally { hideLoading() }
-                }
-                
-                const restoreConfig = async (e) => {
-                    if(!e.target.files[0]) return; showLoading('还原中...');
-                    const fd = new FormData(); fd.append('file', e.target.files[0]);
-                    try {
-                        const res = await fetch('/api/restore', {method:'POST', body:fd});
-                        if(!res.ok) throw new Error("还原失败");
+                        const res = await fetch('/api/download', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                url: form.sub_url
+                            })
+                        });
+                        if (!res.ok) throw new Error((await res.json()).detail);
                         await loadData();
-                        if(configData.sub_url) await fetch('/api/download', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:configData.sub_url})});
-                        await loadData(); showToast("还原成功"); showSettings.value=false;
-                    } catch(err){ showToast(err.message,'error') } finally { hideLoading() }
+                        showToast("更新成功");
+                    } catch (e) {
+                        showToast(e.message, 'error')
+                    } finally {
+                        hideLoading()
+                    }
                 }
-                
+
+                const restoreConfig = async (e) => {
+                    if (!e.target.files[0]) return;
+                    showLoading('还原中...');
+                    const fd = new FormData();
+                    fd.append('file', e.target.files[0]);
+                    try {
+                        const res = await fetch('/api/restore', {
+                            method: 'POST',
+                            body: fd
+                        });
+                        if (!res.ok) throw new Error("还原失败");
+                        await loadData();
+                        if (configData.sub_url) await fetch('/api/download', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                url: configData.sub_url
+                            })
+                        });
+                        await loadData();
+                        showToast("还原成功");
+                        showSettings.value = false;
+                    } catch (err) {
+                        showToast(err.message, 'error')
+                    } finally {
+                        hideLoading()
+                    }
+                }
+
                 const promptAndDownloadBackup = () => {
-                    if(confirm("包含订阅链接和历史记录吗？\n取消则只备份规则配置。")) window.open('/api/backup?include_history=true');
+                    if (confirm("包含订阅链接和历史记录吗？\n取消则只备份规则配置。")) window.open('/api/backup?include_history=true');
                     else window.open('/api/backup?include_history=false');
                 }
 
-                // 辅助
                 const insertIcon = (i) => groupInput.name = i + ' ' + groupInput.name
-                const toggleTheme = () => { isDark.value = !isDark.value; document.documentElement.classList.toggle('dark', isDark.value); localStorage.setItem('theme', isDark.value?'dark':'light'); }
-                const applyHistory = (u) => { if(u === configData.sub_url) return; form.sub_url=u; downloadConfig(); }
-                const restartContainers = async () => { showLoading('重启中...'); try { await fetch('/api/restart_containers',{method:'POST'}); showToast('已发送重启命令'); } catch(e){ showToast(e.message,'error') } finally { hideLoading() } }
-                
-                // 选择逻辑
-                const cancelGroupDelete = () => { isGroupEditMode.value=false; selectedGroups.value=[] }
-                const toggleGroupEdit = () => { isGroupEditMode.value=!isGroupEditMode.value; selectedGroups.value=[] }
-                const isGroupSelected = (n) => selectedGroups.value.includes(n)
-                const toggleGroupSelection = (n) => { 
-                    // 保护特定组
-                    if(['自动选择','节点选择','GLOBAL','REJECT','DIRECT'].includes(n)) return;
-                    isGroupSelected(n) ? selectedGroups.value.splice(selectedGroups.value.indexOf(n),1) : selectedGroups.value.push(n) 
+                const loadTheme = () => {
+                    const t = localStorage.getItem('theme');
+                    if (t === 'light') {
+                        isDark.value = false;
+                        document.documentElement.classList.remove('dark');
+                    } else {
+                        isDark.value = true;
+                        document.documentElement.classList.add('dark');
+                    }
                 }
-                const cancelRuleDelete = () => { isRuleEditMode.value=false; selectedRules.value=[] }
-                const toggleRuleEdit = () => { isRuleEditMode.value=!isRuleEditMode.value; selectedRules.value=[] }
+                const toggleTheme = () => {
+                    isDark.value = !isDark.value;
+                    document.documentElement.classList.toggle('dark', isDark.value);
+                    localStorage.setItem('theme', isDark.value ? 'dark' : 'light');
+                }
+                const applyHistory = (u) => {
+                    if (u === configData.sub_url) return;
+                    form.sub_url = u;
+                    downloadConfig();
+                }
+                const refreshSubscription = () => {
+                    form.sub_url = configData.sub_url;
+                    downloadConfig();
+                }
+                const restartContainers = async () => {
+                    showLoading('重启中...');
+                    try {
+                        await fetch('/api/restart_containers', {
+                            method: 'POST'
+                        });
+                        showToast('已发送重启命令');
+                    } catch (e) {
+                        showToast(e.message, 'error')
+                    } finally {
+                        hideLoading()
+                    }
+                }
+
+                const cancelGroupDelete = () => {
+                    isGroupEditMode.value = false;
+                    selectedGroups.value = []
+                }
+                const toggleGroupEdit = () => {
+                    isGroupEditMode.value = !isGroupEditMode.value;
+                    selectedGroups.value = []
+                }
+                const isGroupSelected = (n) => selectedGroups.value.includes(n)
+                const toggleGroupSelection = (n) => {
+                    if (['自动选择', '节点选择', 'GLOBAL', 'REJECT', 'DIRECT'].includes(n)) return;
+                    isGroupSelected(n) ? selectedGroups.value.splice(selectedGroups.value.indexOf(n), 1) : selectedGroups.value.push(n)
+                }
+                const cancelRuleDelete = () => {
+                    isRuleEditMode.value = false;
+                    selectedRules.value = []
+                }
+                const toggleRuleEdit = () => {
+                    isRuleEditMode.value = !isRuleEditMode.value;
+                    selectedRules.value = []
+                }
                 const isRuleSelected = (r) => selectedRules.value.includes(r)
-                const toggleRuleSelection = (r) => { isRuleSelected(r) ? selectedRules.value.splice(selectedRules.value.indexOf(r),1) : selectedRules.value.push(r) }
-                
+                const toggleRuleSelection = (r) => {
+                    isRuleSelected(r) ? selectedRules.value.splice(selectedRules.value.indexOf(r), 1) : selectedRules.value.push(r)
+                }
+
                 const filteredRules = computed(() => {
-                    if(!analysis.rules) return [];
+                    if (!analysis.rules) return [];
                     const k = searchKey.value.toLowerCase();
                     let list = analysis.rules;
-                    if(k) list = list.filter(r => r.str.toLowerCase().includes(k));
+                    if (k) list = list.filter(r => r.str.toLowerCase().includes(k));
                     return list.slice(0, 100);
                 })
 
-                onMounted(() => { 
-                    if(localStorage.getItem('theme') === 'light') { isDark.value=false; document.documentElement.classList.remove('dark'); }
-                    loadData(); 
+                onMounted(() => {
+                    loadTheme();
+                    loadData();
                 })
 
                 return {
-                    isDark, toggleTheme, globalLoading, loadingText, showSettings, openSettings, currentTab, settingsTab, showInputCard, toast, confirmModal,
-                    logs, copyLogs, logContainer, tabs, form, configData, analysis, icons, groupInput, ruleInput,
-                    isGroupEditMode, toggleGroupEdit, isGroupSelected, toggleGroupSelection, selectedGroups, cancelGroupDelete,
-                    isRuleEditMode, toggleRuleEdit, isRuleSelected, toggleRuleSelection, selectedRules, cancelRuleDelete,
-                    ruleSearch, filteredRules, formatBytes, formatDate, usagePercent,
-                    initiateDelete, performDelete, confirmClearSub, clearSubscription,
-                    saveSettings: async () => { await saveData(); showSettings.value=false; showToast('设置已保存'); },
-                    downloadConfig, restoreConfig, promptAndDownloadBackup, applyHistory, restartContainers, insertIcon, addNewRules, addNewGroup,
-                    refreshSubscription: () => { form.sub_url = configData.sub_url; downloadConfig(); }
+                    isDark,
+                    toggleTheme,
+                    globalLoading,
+                    loadingText,
+                    showSettings,
+                    openSettings,
+                    currentTab,
+                    settingsTab,
+                    showInputCard,
+                    toast,
+                    confirmModal,
+                    logs,
+                    copyLogs,
+                    logContainer,
+                    tabs,
+                    form,
+                    configData,
+                    analysis,
+                    icons,
+                    groupInput,
+                    ruleInput,
+                    isGroupEditMode,
+                    toggleGroupEdit,
+                    isGroupSelected,
+                    toggleGroupSelection,
+                    selectedGroups,
+                    cancelGroupDelete,
+                    isRuleEditMode,
+                    toggleRuleEdit,
+                    isRuleSelected,
+                    toggleRuleSelection,
+                    selectedRules,
+                    cancelRuleDelete,
+                    ruleSearch,
+                    filteredRules,
+                    formatBytes,
+                    formatDate,
+                    usagePercent,
+                    initiateDelete,
+                    performDelete,
+                    confirmClearSub,
+                    clearSubscription,
+                    saveSettings: async () => {
+                        await saveData();
+                        showSettings.value = false;
+                        showToast('设置已保存');
+                    },
+                    downloadConfig,
+                    restoreConfig,
+                    promptAndDownloadBackup,
+                    applyHistory,
+                    restartContainers,
+                    insertIcon,
+                    addNewRules,
+                    addNewGroup,
+                    refreshSubscription
                 }
             }
         }).mount('#app')
     </script>
 </body>
+
 </html>

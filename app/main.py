@@ -7,7 +7,7 @@ import docker
 import asyncio
 import re
 from datetime import datetime
-from urllib.parse import quote, unquote, urlparse
+from urllib.parse import quote
 from typing import List, Dict, Any, Optional
 from collections import Counter
 import pytz
@@ -16,7 +16,7 @@ import pytz
 try:
     import aiofiles
 except ImportError:
-    print("CRITICAL ERROR: 缺少 'aiofiles' 库。")
+    print("CRITICAL ERROR: 缺少 'aiofiles' 库。请确保 requirements.txt 中包含 aiofiles 并重新构建镜像！")
     exit(1)
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Request, Form
@@ -33,10 +33,10 @@ from apscheduler.triggers.cron import CronTrigger
 DATA_PATH = "/data"
 CONFIG_JSON = os.path.join(DATA_PATH, "config.json")
 OUTPUT_YAML = os.path.join(DATA_PATH, "config.yaml")
+LOG_FILE = os.path.join(DATA_PATH, "app.log")
 DEFAULT_BACKEND = "https://api.v1.mk/sub?target=clash&url="
 
 # --- 初始化日志 ---
-LOG_FILE = os.path.join(DATA_PATH, "app.log")
 logger = logging.getLogger("ClashWeb")
 logger.setLevel(logging.INFO)
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
@@ -50,7 +50,6 @@ if not os.path.exists(DATA_PATH):
         os.makedirs(DATA_PATH)
     except:
         pass
-
 file_handler = logging.FileHandler(LOG_FILE, encoding='utf-8')
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
@@ -70,21 +69,17 @@ app.add_middleware(
 
 # --- 数据模型 ---
 
+class SubHistoryItem(BaseModel):
+    url: str
+    date: str
+    remarks: Optional[str] = ""
+
 class UserInfo(BaseModel):
-    name: str = "未订阅" 
-    webUrl: str = "" 
     upload: int = 0
     download: int = 0
     total: int = 0
     expire: int = 0
     update_time: str = ""
-
-class SubHistoryItem(BaseModel):
-    url: str
-    date: str
-    name: Optional[str] = "未知机场"
-    info: Optional[Dict[str, Any]] = {}
-    remarks: Optional[str] = ""
 
 class ConfigModel(BaseModel):
     sub_backend: Optional[str] = ""
@@ -111,34 +106,28 @@ def init_data():
         except: pass
     
     if not os.path.exists(CONFIG_JSON) or os.path.isdir(CONFIG_JSON):
-        with open(CONFIG_JSON, 'w', encoding='utf-8') as f: json.dump(ConfigModel().dict(), f)
+        with open(CONFIG_JSON, 'w') as f: json.dump(ConfigModel().dict(), f)
 
     if not os.path.exists(OUTPUT_YAML) or os.path.isdir(OUTPUT_YAML):
-        with open(OUTPUT_YAML, 'w', encoding='utf-8') as f: f.write("")
+        with open(OUTPUT_YAML, 'w') as f: f.write("")
 
 def refresh_scheduler():
     try:
-        with open(CONFIG_JSON, 'r', encoding='utf-8') as f:
+        with open(CONFIG_JSON, 'r') as f:
             data = json.load(f)
         
         job_id = 'auto_update_job'
         if scheduler.get_job(job_id):
             scheduler.remove_job(job_id)
 
-        if data.get('auto_update'):
-            cron_str = data.get('cron_expression', "0 4 * * *")
+        if data.get('auto_update') and data.get('cron_expression'):
+            cron_str = data['cron_expression']
             try:
-                # [修复] 强制校验 Cron 表达式，防止崩溃
                 trigger = CronTrigger.from_crontab(cron_str, timezone=tz)
                 scheduler.add_job(scheduled_update_task, trigger, id=job_id, replace_existing=True)
                 logger.info(f"✅ 定时任务已设置: [{cron_str}]")
             except Exception as e:
-                logger.error(f"❌ Cron 表达式 '{cron_str}' 无效: {e}。将使用默认值 '0 4 * * *'")
-                # 回退到默认值，确保任务运行
-                try:
-                    trigger = CronTrigger.from_crontab("0 4 * * *", timezone=tz)
-                    scheduler.add_job(scheduled_update_task, trigger, id=job_id, replace_existing=True)
-                except: pass
+                logger.error(f"Invalid cron expression: {e}")
         else:
             logger.info("⛔️ 定时任务已关闭")
     except Exception as e:
@@ -147,7 +136,7 @@ def refresh_scheduler():
 async def scheduled_update_task():
     logger.info(">>> ⏳ 开始执行定时更新任务 <<<")
     try:
-        async with aiofiles.open(CONFIG_JSON, 'r', encoding='utf-8') as f:
+        async with aiofiles.open(CONFIG_JSON, 'r') as f:
             content = await f.read()
             data = json.loads(content)
         
@@ -159,14 +148,9 @@ async def scheduled_update_task():
         # 执行更新逻辑
         await internal_process_subscription(url, data)
         
-        # 保存 user_info 更新
-        async with aiofiles.open(CONFIG_JSON, 'w', encoding='utf-8') as f:
-            await f.write(json.dumps(data, indent=2))
-
         logger.info("✅ 定时更新任务完成")
 
-        # 自动重启容器逻辑 (兼容中文逗号)
-        container_str = data.get('restart_containers', '').replace('，', ',')
+        container_str = data.get('restart_containers', '')
         if container_str:
             try:
                 client = docker.from_env()
@@ -174,24 +158,27 @@ async def scheduled_update_task():
                 for name in targets:
                     try:
                         client.containers.get(name).restart()
-                        logger.info(f"✅ (定时) 容器已重启: {name}")
+                        logger.info(f"✅ 容器已重启: {name}")
                     except Exception as e:
-                        logger.error(f"❌ (定时) 重启容器 {name} 失败: {e}")
+                        logger.error(f"❌ 重启容器 {name} 失败: {e}")
             except Exception as e:
                 logger.error(f"Docker 连接失败: {e}")
                     
     except Exception as e:
         logger.error(f"❌ 定时任务执行出错: {e}")
 
-# --- 任务1: 获取原始流量信息 ---
+# --- 逻辑分离：任务1 获取原始流量信息 ---
 async def fetch_original_userinfo(url: str) -> Optional[dict]:
-    """直接请求原始订阅链接，提取 Header 中的流量信息、profile-title 和官网地址"""
-    logger.info(f"📡 [信息获取] 正在请求原始链接: {url}")
+    """直接请求原始订阅链接，仅提取 Header，不下载 Body"""
+    logger.info(f"📡 [流量任务] 正在直接请求原始链接获取 Header: {url}")
     headers = {"User-Agent": "ClashForAndroid/2.5.12"} 
     
     try:
         async with httpx.AsyncClient(verify=False, follow_redirects=True) as client:
+            # 使用 GET 但通过 stream 立即关闭，避免下载大文件，类似于 HEAD 但兼容性更好
             async with client.stream("GET", url, headers=headers, timeout=30.0) as resp:
+                # 打印 Headers 调试
+                # logger.info(f"原始链接响应头: {resp.headers}")
                 
                 user_info_header = None
                 for k, v in resp.headers.items():
@@ -199,66 +186,32 @@ async def fetch_original_userinfo(url: str) -> Optional[dict]:
                         user_info_header = v
                         break
                 
-                info = {}
                 if user_info_header:
+                    info = {}
                     parts = user_info_header.split(';')
                     for part in parts:
                         if '=' in part:
                             kv = part.strip().split('=')
                             if len(kv) >= 2:
                                 info[kv[0].strip()] = int(kv[1].strip())
-
-                airport_name = ""
-                for k, v in resp.headers.items():
-                    if k.lower() == 'profile-title':
-                        try: airport_name = unquote(v)
-                        except: airport_name = v
-                        break
-                
-                if not airport_name:
-                    for k, v in resp.headers.items():
-                        if k.lower() == 'content-disposition':
-                            m = re.search(r'filename\*?=(?:UTF-8\'\')?([^;]+)', v, re.IGNORECASE)
-                            if m:
-                                raw_name = m.group(1).strip('"\'')
-                                try:
-                                    airport_name = unquote(raw_name)
-                                    if '.' in airport_name: airport_name = airport_name.rsplit('.', 1)[0]
-                                except: pass
-                            break
-                
-                if not airport_name:
-                    try: airport_name = urlparse(url).netloc
-                    except: airport_name = "未知订阅"
-
-                web_url = ""
-                for k, v in resp.headers.items():
-                    if k.lower() == 'profile-web-page-url':
-                        web_url = v.strip()
-                        break
-                
-                if not web_url:
-                    try:
-                        parsed = urlparse(url)
-                        web_url = f"{parsed.scheme}://{parsed.netloc}"
-                    except: pass
-
-                result = {
-                    "name": airport_name,
-                    "webUrl": web_url,
-                    "upload": info.get("upload", 0),
-                    "download": info.get("download", 0),
-                    "total": info.get("total", 0),
-                    "expire": info.get("expire", 0),
-                    "update_time": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                }
-                return result
-
+                    
+                    result = {
+                        "upload": info.get("upload", 0),
+                        "download": info.get("download", 0),
+                        "total": info.get("total", 0),
+                        "expire": info.get("expire", 0),
+                        "update_time": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    }
+                    logger.info(f"✅ [流量任务] 成功获取: {result}")
+                    return result
+                else:
+                    logger.warning("⚠️ [流量任务] 原始链接未返回 subscription-userinfo")
+                    return None
     except Exception as e:
-        logger.warning(f"❌ [信息获取] 请求失败: {e}")
+        logger.warning(f"❌ [流量任务] 请求失败: {e}")
         return None
 
-# --- 任务2: 下载并转换配置 ---
+# --- 逻辑分离：任务2 下载并转换配置 ---
 async def download_and_convert_config(url: str, data: dict) -> bool:
     """请求转换后端，下载 YAML，并应用 Patch"""
     base_url = data.get('sub_backend') or DEFAULT_BACKEND
@@ -269,6 +222,7 @@ async def download_and_convert_config(url: str, data: dict) -> bool:
     encoded_sub_url = quote(url, safe='') 
     full_url = f"{base_url}{encoded_sub_url}"
     
+    # 转换后端通常模拟 Chrome
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
 
     logger.info(f"⬇️ [下载任务] 正在请求转换后端: {full_url}")
@@ -287,6 +241,7 @@ async def download_and_convert_config(url: str, data: dict) -> bool:
         logger.error(f"❌ [下载任务] 下载失败: {e}")
         raise e
 
+    # 解析 YAML
     try:
         config = yaml.safe_load(config_yaml)
         if not isinstance(config, dict):
@@ -295,14 +250,20 @@ async def download_and_convert_config(url: str, data: dict) -> bool:
         logger.error(f"❌ [下载任务] YAML 解析失败: {e}")
         raise Exception("YAML 解析失败，内容可能不是有效的 Clash 配置")
 
+    # 应用补丁 (Patch)
     try:
         final_config = apply_patch(config, data)
+        
+        # 强制 Block Style 写入，防止乱码
         output_str = yaml.dump(final_config, allow_unicode=True, sort_keys=False, default_flow_style=False, width=float("inf"))
-        yaml.safe_load(output_str) # 校验
+        
+        # 校验
+        yaml.safe_load(output_str)
     except Exception as e:
         logger.error(f"❌ [下载任务] 配置处理或校验失败: {e}")
         raise Exception(f"配置处理失败: {e}")
 
+    # 写入文件
     async with aiofiles.open(OUTPUT_YAML, 'w', encoding='utf-8') as f:
         await f.write(output_str)
     
@@ -310,24 +271,37 @@ async def download_and_convert_config(url: str, data: dict) -> bool:
     return True
 
 # --- 主流程 ---
-async def internal_process_subscription(url: str, data: dict) -> Optional[dict]:
+async def internal_process_subscription(url: str, data: dict):
+    """
+    并发执行：
+    1. 从原始链接获取流量信息 (不影响配置生成)
+    2. 从转换后端获取配置文件 (核心任务)
+    """
+    
+    # 创建两个任务
     task_traffic = fetch_original_userinfo(url)
     task_download = download_and_convert_config(url, data)
     
+    # 并发执行，return_exceptions=True 确保一个失败不会中断另一个
     results = await asyncio.gather(task_traffic, task_download, return_exceptions=True)
     
     fetched_user_info = results[0]
     download_result = results[1]
     
+    # 处理流量信息结果
     if isinstance(fetched_user_info, dict):
         data['user_info'] = fetched_user_info
+        # 更新 config.json
+        async with aiofiles.open(CONFIG_JSON, 'w') as f:
+            await f.write(json.dumps(data, indent=2))
     elif isinstance(fetched_user_info, Exception):
+        # 流量获取失败仅记录日志，不抛出异常阻断流程
         logger.warning(f"流量信息获取任务异常: {fetched_user_info}")
 
+    # 处理下载结果
     if isinstance(download_result, Exception):
+        # 下载失败必须抛出异常给前端
         raise download_result
-
-    return fetched_user_info if isinstance(fetched_user_info, dict) else None
 
 def get_rule_target(rule_str: str) -> str:
     try:
@@ -341,7 +315,6 @@ def get_rule_target(rule_str: str) -> str:
 def clean_rule_for_clash(rule_str: str) -> str:
     return rule_str.split('#')[0].strip()
 
-# --- Patch 逻辑 ---
 def apply_patch(config: dict, patch: dict) -> dict:
     config['allow-lan'] = True
     config['external-controller'] = '0.0.0.0:9090'
@@ -354,26 +327,20 @@ def apply_patch(config: dict, patch: dict) -> dict:
             reference_proxies = g['proxies']
             break
 
-    del_groups_list = [n.strip() for n in (patch.get('del_groups') or []) if n.strip()]
+    del_groups_list = patch.get('del_groups') or []
     add_rules_raw = patch.get('add_rules') or []
 
     if del_groups_list:
-        config['proxy-groups'] = [
-            g for g in config.get('proxy-groups', []) 
-            if g['name'].strip() not in del_groups_list
-        ]
-        
+        config['proxy-groups'] = [g for g in config.get('proxy-groups', []) if g['name'] not in del_groups_list]
         new_base_rules = []
         for rule in config.get('rules', []):
-            target = get_rule_target(rule)
-            if target not in del_groups_list:
+            if get_rule_target(rule) not in del_groups_list:
                 new_base_rules.append(rule)
         config['rules'] = new_base_rules
         
         valid_add_rules = []
         for rule in add_rules_raw:
-            target = get_rule_target(rule)
-            if target not in del_groups_list:
+            if get_rule_target(rule) not in del_groups_list:
                 valid_add_rules.append(rule)
         add_rules_raw = valid_add_rules
 
@@ -388,7 +355,7 @@ def apply_patch(config: dict, patch: dict) -> dict:
                      new_group['proxies'] = list(reference_proxies)
                 config.setdefault('proxy-groups', []).insert(0, new_group)
 
-    del_keywords = [k.strip() for k in (patch.get('del_rules') or []) if k.strip()]
+    del_keywords = patch.get('del_rules') or []
     if del_keywords:
         final_rules = []
         for rule in config.get('rules', []):
@@ -399,8 +366,9 @@ def apply_patch(config: dict, patch: dict) -> dict:
 
     if add_rules_raw:
         for r in reversed(add_rules_raw): 
-            if r and r.strip():
-                config.setdefault('rules', []).insert(0, r.strip())
+            clean_r = clean_rule_for_clash(r)
+            if clean_r:
+                config.setdefault('rules', []).insert(0, clean_r)
              
     return config
 
@@ -427,16 +395,11 @@ async def get_logs(lines: int = 100):
 async def get_data():
     try:
         if os.path.exists(CONFIG_JSON) and os.path.getsize(CONFIG_JSON) > 0:
-            async with aiofiles.open(CONFIG_JSON, 'r', encoding='utf-8') as f:
+            async with aiofiles.open(CONFIG_JSON, 'r') as f:
                 content = await f.read()
                 data = json.loads(content)
                 if 'user_info' not in data:
-                    data['user_info'] = UserInfo().dict()
-                else:
-                    default_info = UserInfo().dict()
-                    for k, v in default_info.items():
-                        if k not in data['user_info']:
-                            data['user_info'][k] = v
+                    data['user_info'] = {"upload":0, "download":0, "total":0, "expire":0, "update_time": ""}
                 return data
         return {}
     except: return {}
@@ -445,7 +408,7 @@ async def get_data():
 async def save_data(data: ConfigModel):
     try:
         payload = data.dict(exclude_none=True)
-        async with aiofiles.open(CONFIG_JSON, 'w', encoding='utf-8') as f:
+        async with aiofiles.open(CONFIG_JSON, 'w') as f:
             await f.write(json.dumps(payload, indent=2))
         
         refresh_scheduler()
@@ -454,53 +417,20 @@ async def save_data(data: ConfigModel):
         logger.error(f"保存配置失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.delete("/api/subscription")
-async def delete_subscription():
-    try:
-        async with aiofiles.open(CONFIG_JSON, 'r', encoding='utf-8') as f:
-            content = await f.read()
-            data = json.loads(content)
-        
-        data['sub_url'] = ""
-        data['user_info'] = UserInfo().dict()
-        
-        async with aiofiles.open(CONFIG_JSON, 'w', encoding='utf-8') as f:
-            await f.write(json.dumps(data, indent=2))
-            
-        minimal_config = {
-            "port": 7890,
-            "socks-port": 7891,
-            "allow-lan": True,
-            "mode": "Rule",
-            "log-level": "info",
-            "external-controller": "0.0.0.0:9090",
-            "proxies": [],
-            "proxy-groups": [],
-            "rules": []
-        }
-        async with aiofiles.open(OUTPUT_YAML, 'w', encoding='utf-8') as f:
-            await f.write(yaml.dump(minimal_config))
-            
-        logger.info("🗑️ 已清空当前订阅及配置")
-        return {"status": "success", "msg": "订阅已清空"}
-    except Exception as e:
-        logger.error(f"清空订阅失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 @app.get("/api/backup")
-async def backup_config(include_history: bool = False):
+async def backup_config(include_sub: bool = False):
     if not os.path.exists(CONFIG_JSON): raise HTTPException(status_code=404, detail="No config found")
     try:
-        async with aiofiles.open(CONFIG_JSON, 'r', encoding='utf-8') as f:
+        async with aiofiles.open(CONFIG_JSON, 'r') as f:
             content = await f.read()
             data = json.loads(content)
             
-        if not include_history:
+        if not include_sub:
             data['sub_url'] = ""
             data['sub_history'] = []
             
         temp_path = "/tmp/clashweb_backup.json"
-        async with aiofiles.open(temp_path, 'w', encoding='utf-8') as f:
+        async with aiofiles.open(temp_path, 'w') as f:
             await f.write(json.dumps(data, indent=2))
             
         return FileResponse(temp_path, filename="clashweb_backup.json", media_type="application/json")
@@ -508,33 +438,33 @@ async def backup_config(include_history: bool = False):
         raise HTTPException(500, detail=str(e))
 
 @app.post("/api/restore")
-async def restore_config(file: UploadFile = File(...)):
+async def restore_config(file: UploadFile = File(...), restore_sub: bool = Form(False)):
     try:
         content = await file.read()
         backup_data = json.loads(content)
         if not isinstance(backup_data, dict): raise ValueError("Format Error")
         
-        current_data = {}
-        if os.path.exists(CONFIG_JSON):
-            with open(CONFIG_JSON, 'r', encoding='utf-8') as f: current_data = json.load(f)
+        final_data = backup_data
+        if not restore_sub:
+            current_data = {}
+            if os.path.exists(CONFIG_JSON):
+                with open(CONFIG_JSON, 'r') as f: current_data = json.load(f)
+            final_data['sub_url'] = current_data.get('sub_url', '')
+            final_data['sub_history'] = current_data.get('sub_history', [])
         
-        if not backup_data.get('sub_url'):
-            backup_data['sub_url'] = current_data.get('sub_url', "")
-            if not backup_data.get('sub_history'):
-                backup_data['sub_history'] = current_data.get('sub_history', [])
-        
-        merged_data = ConfigModel(**current_data).dict()
-        merged_data.update(backup_data)
+        if restore_sub and not final_data.get('sub_url'):
+             raise ValueError("备份文件中未包含订阅信息")
 
-        async with aiofiles.open(CONFIG_JSON, "w", encoding='utf-8') as f:
-            await f.write(json.dumps(merged_data, indent=2))
+        async with aiofiles.open(CONFIG_JSON, "w") as f:
+            await f.write(json.dumps(final_data, indent=2))
         
         refresh_scheduler()
         
         summary = {
-            "groups": len(merged_data.get('add_groups', [])),
-            "rules": len(merged_data.get('add_rules', [])),
-            "has_sub": bool(merged_data.get('sub_url'))
+            "groups": len(final_data.get('add_groups', [])),
+            "rules": len(final_data.get('add_rules', [])),
+            "sub_status": "已覆盖" if restore_sub else "未变更",
+            "has_sub": bool(final_data.get('sub_url'))
         }
         return {"status": "success", "summary": summary}
     except Exception as e:
@@ -544,13 +474,11 @@ async def restore_config(file: UploadFile = File(...)):
 @app.post("/api/restart_containers")
 async def restart_containers():
     try:
-        async with aiofiles.open(CONFIG_JSON, 'r', encoding='utf-8') as f:
+        async with aiofiles.open(CONFIG_JSON, 'r') as f:
             content = await f.read()
             data = json.loads(content)
-        
-        container_str = data.get('restart_containers', '').replace('，', ',')
-        targets = [n.strip() for n in container_str.split(',') if n.strip()]
-
+            
+        targets = [n.strip() for n in data.get('restart_containers', '').split(',') if n.strip()]
         if not targets: raise HTTPException(400, detail="未设置容器")
         
         client = docker.from_env()
@@ -575,50 +503,27 @@ async def download_config(req: DownloadRequest):
     if not req.url: raise HTTPException(status_code=400, detail="Missing URL")
 
     try:
-        async with aiofiles.open(CONFIG_JSON, 'r', encoding='utf-8') as f:
+        async with aiofiles.open(CONFIG_JSON, 'r') as f:
             content = await f.read()
             data = json.loads(content)
     except: data = {}
     
-    existing_history_entry = next((h for h in data.get('sub_history', []) if h.get('url') == req.url), None)
     data['sub_url'] = req.url
+    history = data.get('sub_history', [])
+    # 简单的历史去重逻辑
+    history = [h for h in history if h['url'] != req.url]
+    history.insert(0, {"url": req.url, "date": datetime.now().strftime('%Y-%m-%d %H:%M')})
+    if len(history) > 10: history = history[:10]
+    data['sub_history'] = history
     
+    async with aiofiles.open(CONFIG_JSON, 'w') as f:
+        await f.write(json.dumps(data, indent=2))
+
     try:
-        fetched_info = await internal_process_subscription(req.url, data)
-        
-        airport_name = existing_history_entry.get("name", "未知机场") if existing_history_entry else "未知机场"
-        traffic_info = existing_history_entry.get("info", {}) if existing_history_entry else {}
-        
-        if fetched_info:
-            airport_name = fetched_info.get("name", "未知机场")
-            traffic_info = {
-                "upload": fetched_info.get("upload", 0),
-                "download": fetched_info.get("download", 0),
-                "total": fetched_info.get("total", 0),
-                "expire": fetched_info.get("expire", 0)
-            }
-        
-        history = data.get('sub_history', [])
-        history = [h for h in history if h.get('url') != req.url]
-        
-        new_record = {
-            "url": req.url,
-            "date": datetime.now().strftime('%Y-%m-%d %H:%M'),
-            "name": airport_name,
-            "info": traffic_info
-        }
-        history.insert(0, new_record)
-        
-        if len(history) > 10: history = history[:10]
-        data['sub_history'] = history
-        
-        async with aiofiles.open(CONFIG_JSON, 'w', encoding='utf-8') as f:
-            await f.write(json.dumps(data, indent=2))
-            
+        # 调用新的逻辑
+        await internal_process_subscription(req.url, data)
     except Exception as e:
         logger.error(f"处理订阅出错: {e}")
-        async with aiofiles.open(CONFIG_JSON, 'w', encoding='utf-8') as f:
-            await f.write(json.dumps(data, indent=2))
         raise HTTPException(status_code=500, detail=f"Processing Error: {str(e)}")
         
     return {"status": "success"}
@@ -634,23 +539,16 @@ async def analyze_config():
             config = yaml.safe_load(content)
             if not config: return {"status": "empty"}
         
-        user_config = {}
+        json_rules_map = {}
         try:
             if os.path.exists(CONFIG_JSON):
-                async with aiofiles.open(CONFIG_JSON, 'r', encoding='utf-8') as f:
+                async with aiofiles.open(CONFIG_JSON, 'r') as f:
                     content = await f.read()
-                    user_config = json.loads(content)
+                    saved_data = json.loads(content)
+                    for r in saved_data.get('add_rules', []):
+                        clean = clean_rule_for_clash(r)
+                        json_rules_map[clean] = r
         except: pass
-
-        custom_group_names = set()
-        for g in user_config.get('add_groups', []):
-            if g.get('name'):
-                custom_group_names.add(g['name'])
-        
-        custom_rules_map = {} 
-        for r in user_config.get('add_rules', []):
-            clean = clean_rule_for_clash(r)
-            custom_rules_map[clean] = r
 
         rule_usage = Counter()
         final_display_rules = []
@@ -658,26 +556,12 @@ async def analyze_config():
         for r in config.get('rules', []):
             target = get_rule_target(r)
             if target: rule_usage[target] += 1
-            
-            clean_r = clean_rule_for_clash(r)
-            is_custom = clean_r in custom_rules_map
-            display_str = custom_rules_map[clean_r] if is_custom else r
-            
-            final_display_rules.append({
-                "str": display_str,
-                "source": "custom" if is_custom else "native"
-            })
+            if r in json_rules_map:
+                final_display_rules.append(json_rules_map[r])
+            else:
+                final_display_rules.append(r)
 
-        groups_info = []
-        for g in config.get('proxy-groups', []):
-            g_name = g['name']
-            source = "custom" if g_name in custom_group_names else "native"
-            groups_info.append({
-                "name": g_name,
-                "type": g.get('type', 'select'),
-                "rule_count": rule_usage.get(g_name, 0),
-                "source": source 
-            })
+        groups_info = [{"name": g['name'], "type": g.get('type', 'select'), "rule_count": rule_usage.get(g['name'], 0)} for g in config.get('proxy-groups', [])]
         
         proxies = config.get('proxies', [])
         region_map = {
@@ -733,6 +617,7 @@ async def analyze_config():
         }
     except Exception as e: return {"status": "error", "msg": str(e)}
 
+# --- 静态文件挂载 ---
 if os.path.exists("images"):
     app.mount("/images", StaticFiles(directory="images"), name="images")
 

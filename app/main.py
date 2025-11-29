@@ -50,7 +50,7 @@ if not os.path.exists(DATA_PATH):
         os.makedirs(DATA_PATH)
     except:
         pass
-# [修复] 日志文件使用 utf-8 编码
+# 使用 utf-8 编码初始化日志文件处理器
 file_handler = logging.FileHandler(LOG_FILE, encoding='utf-8')
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
@@ -71,8 +71,8 @@ app.add_middleware(
 # --- 数据模型 ---
 
 class UserInfo(BaseModel):
-    name: str = "" 
-    webUrl: str = "" # [新增] 机场官网地址
+    name: str = "未订阅" 
+    webUrl: str = "" 
     upload: int = 0
     download: int = 0
     total: int = 0
@@ -111,16 +111,13 @@ def init_data():
         except: pass
     
     if not os.path.exists(CONFIG_JSON) or os.path.isdir(CONFIG_JSON):
-        # [修复] 指定 encoding='utf-8'
         with open(CONFIG_JSON, 'w', encoding='utf-8') as f: json.dump(ConfigModel().dict(), f)
 
     if not os.path.exists(OUTPUT_YAML) or os.path.isdir(OUTPUT_YAML):
-        # [修复] 指定 encoding='utf-8'
         with open(OUTPUT_YAML, 'w', encoding='utf-8') as f: f.write("")
 
 def refresh_scheduler():
     try:
-        # [修复] 指定 encoding='utf-8'
         with open(CONFIG_JSON, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
@@ -144,7 +141,6 @@ def refresh_scheduler():
 async def scheduled_update_task():
     logger.info(">>> ⏳ 开始执行定时更新任务 <<<")
     try:
-        # [修复] 指定 encoding='utf-8'
         async with aiofiles.open(CONFIG_JSON, 'r', encoding='utf-8') as f:
             content = await f.read()
             data = json.loads(content)
@@ -157,13 +153,13 @@ async def scheduled_update_task():
         # 执行更新逻辑
         await internal_process_subscription(url, data)
         
-        # 保存 user_info 更新 [修复] 指定 encoding='utf-8'
+        # 保存 user_info 更新
         async with aiofiles.open(CONFIG_JSON, 'w', encoding='utf-8') as f:
             await f.write(json.dumps(data, indent=2))
 
         logger.info("✅ 定时更新任务完成")
 
-        # [修复] 兼容中文逗号
+        # 兼容中文逗号
         container_str = data.get('restart_containers', '').replace('，', ',')
         if container_str:
             try:
@@ -180,7 +176,8 @@ async def scheduled_update_task():
                     
     except Exception as e:
         logger.error(f"❌ 定时任务执行出错: {e}")
-# --- 逻辑分离：任务1 获取原始流量信息和机场名称 ---
+
+# --- 任务1: 获取原始流量信息 ---
 async def fetch_original_userinfo(url: str) -> Optional[dict]:
     """直接请求原始订阅链接，提取 Header 中的流量信息、profile-title 和官网地址"""
     logger.info(f"📡 [信息获取] 正在请求原始链接: {url}")
@@ -216,7 +213,7 @@ async def fetch_original_userinfo(url: str) -> Optional[dict]:
                         except: airport_name = v
                         break
                 
-                # B. Content-Disposition 提取
+                # B. Content-Disposition 提取 (增强兼容性)
                 if not airport_name:
                     for k, v in resp.headers.items():
                         if k.lower() == 'content-disposition':
@@ -234,7 +231,7 @@ async def fetch_original_userinfo(url: str) -> Optional[dict]:
                     try: airport_name = urlparse(url).netloc
                     except: airport_name = "未知订阅"
 
-                # 3. [新增] 提取官网地址 (webUrl)
+                # 3. 提取官网地址 (webUrl)
                 web_url = ""
                 # A. 尝试从响应头获取 (Clash 标准头)
                 for k, v in resp.headers.items():
@@ -246,13 +243,12 @@ async def fetch_original_userinfo(url: str) -> Optional[dict]:
                 if not web_url:
                     try:
                         parsed = urlparse(url)
-                        # 简单的假设：订阅域名的根通常是官网
                         web_url = f"{parsed.scheme}://{parsed.netloc}"
                     except: pass
 
                 result = {
                     "name": airport_name,
-                    "webUrl": web_url, # [新增]
+                    "webUrl": web_url,
                     "upload": info.get("upload", 0),
                     "download": info.get("download", 0),
                     "total": info.get("total", 0),
@@ -266,7 +262,7 @@ async def fetch_original_userinfo(url: str) -> Optional[dict]:
         logger.warning(f"❌ [信息获取] 请求失败: {e}")
         return None
 
-# --- 逻辑分离：任务2 下载并转换配置 ---
+# --- 任务2: 下载并转换配置 ---
 async def download_and_convert_config(url: str, data: dict) -> bool:
     """请求转换后端，下载 YAML，并应用 Patch"""
     base_url = data.get('sub_backend') or DEFAULT_BACKEND
@@ -314,7 +310,6 @@ async def download_and_convert_config(url: str, data: dict) -> bool:
         raise Exception(f"配置处理失败: {e}")
 
     # 写入文件
-    # [修复] 指定 encoding='utf-8'
     async with aiofiles.open(OUTPUT_YAML, 'w', encoding='utf-8') as f:
         await f.write(output_str)
     
@@ -324,13 +319,8 @@ async def download_and_convert_config(url: str, data: dict) -> bool:
 # --- 主流程 ---
 async def internal_process_subscription(url: str, data: dict) -> Optional[dict]:
     """
-    并发执行：
-    1. 从原始链接获取流量信息和名称
-    2. 从转换后端获取配置文件
-    
-    返回：fetch_original_userinfo 的结果 (可能为 None)
+    并发执行：1.获取流量 2.下载配置
     """
-    
     task_traffic = fetch_original_userinfo(url)
     task_download = download_and_convert_config(url, data)
     
@@ -342,7 +332,6 @@ async def internal_process_subscription(url: str, data: dict) -> Optional[dict]:
     # 处理流量信息结果
     if isinstance(fetched_user_info, dict):
         data['user_info'] = fetched_user_info
-        # 注意：这里只更新内存中的 data 对象，调用者负责写入 config.json
     elif isinstance(fetched_user_info, Exception):
         logger.warning(f"流量信息获取任务异常: {fetched_user_info}")
 
@@ -364,11 +353,13 @@ def get_rule_target(rule_str: str) -> str:
 def clean_rule_for_clash(rule_str: str) -> str:
     return rule_str.split('#')[0].strip()
 
+# --- Patch 逻辑 (关键修改：增强删除鲁棒性) ---
 def apply_patch(config: dict, patch: dict) -> dict:
     config['allow-lan'] = True
     config['external-controller'] = '0.0.0.0:9090'
     if 'bind-address' in config: config['bind-address'] = '*'
 
+    # 确定参考节点 (用于新组默认填充)
     reference_proxies = ["DIRECT", "REJECT"]
     source_groups = config.get('proxy-groups', [])
     for g in source_groups:
@@ -376,23 +367,34 @@ def apply_patch(config: dict, patch: dict) -> dict:
             reference_proxies = g['proxies']
             break
 
-    del_groups_list = patch.get('del_groups') or []
+    # [优化] 删除组逻辑：增加 strip() 确保精准匹配
+    del_groups_list = [n.strip() for n in (patch.get('del_groups') or []) if n.strip()]
     add_rules_raw = patch.get('add_rules') or []
 
     if del_groups_list:
-        config['proxy-groups'] = [g for g in config.get('proxy-groups', []) if g['name'] not in del_groups_list]
+        # 过滤组
+        config['proxy-groups'] = [
+            g for g in config.get('proxy-groups', []) 
+            if g['name'].strip() not in del_groups_list
+        ]
+        
+        # 级联删除：如果规则指向了已删除的组，则该规则也删除
         new_base_rules = []
         for rule in config.get('rules', []):
-            if get_rule_target(rule) not in del_groups_list:
+            target = get_rule_target(rule)
+            if target not in del_groups_list:
                 new_base_rules.append(rule)
         config['rules'] = new_base_rules
         
+        # 同样过滤用户新增的规则
         valid_add_rules = []
         for rule in add_rules_raw:
-            if get_rule_target(rule) not in del_groups_list:
+            target = get_rule_target(rule)
+            if target not in del_groups_list:
                 valid_add_rules.append(rule)
         add_rules_raw = valid_add_rules
 
+    # 添加组
     add_groups = patch.get('add_groups') or []
     if add_groups:
         existing_names = {g['name'] for g in config.get('proxy-groups', [])}
@@ -404,15 +406,18 @@ def apply_patch(config: dict, patch: dict) -> dict:
                      new_group['proxies'] = list(reference_proxies)
                 config.setdefault('proxy-groups', []).insert(0, new_group)
 
-    del_keywords = patch.get('del_rules') or []
+    # [优化] 删除规则逻辑：关键字过滤
+    del_keywords = [k.strip() for k in (patch.get('del_rules') or []) if k.strip()]
     if del_keywords:
         final_rules = []
         for rule in config.get('rules', []):
             clean_rule = clean_rule_for_clash(rule)
+            # 如果规则包含任何一个删除关键字，则丢弃
             if not any(k in clean_rule for k in del_keywords): 
                 final_rules.append(rule)
         config['rules'] = final_rules
 
+    # 添加规则 (插入到最前)
     if add_rules_raw:
         for r in reversed(add_rules_raw): 
             clean_r = clean_rule_for_clash(r)
@@ -433,26 +438,24 @@ async def get_logs(lines: int = 100):
     if not os.path.exists(LOG_FILE):
         return {"logs": []}
     try:
-        # [修复] 指定 encoding='utf-8'
         async with aiofiles.open(LOG_FILE, 'r', encoding='utf-8') as f:
             content = await f.read()
             all_lines = content.splitlines()
             return {"logs": all_lines[-lines:]}
     except Exception as e:
         return {"logs": [f"Error reading logs: {str(e)}"]}
+
 @app.get("/api/data")
 async def get_data():
     try:
         if os.path.exists(CONFIG_JSON) and os.path.getsize(CONFIG_JSON) > 0:
-            # [修复] 指定 encoding='utf-8'
             async with aiofiles.open(CONFIG_JSON, 'r', encoding='utf-8') as f:
                 content = await f.read()
                 data = json.loads(content)
-                # 确保 user_info 结构完整
                 if 'user_info' not in data:
                     data['user_info'] = UserInfo().dict()
                 else:
-                    # 补全可能缺失的字段 (如 webUrl)
+                    # 补全可能缺失的字段
                     default_info = UserInfo().dict()
                     for k, v in default_info.items():
                         if k not in data['user_info']:
@@ -465,7 +468,6 @@ async def get_data():
 async def save_data(data: ConfigModel):
     try:
         payload = data.dict(exclude_none=True)
-        # [修复] 指定 encoding='utf-8'
         async with aiofiles.open(CONFIG_JSON, 'w', encoding='utf-8') as f:
             await f.write(json.dumps(payload, indent=2))
         
@@ -475,23 +477,58 @@ async def save_data(data: ConfigModel):
         logger.error(f"保存配置失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# [新增] 删除/清空订阅接口
+@app.delete("/api/subscription")
+async def delete_subscription():
+    try:
+        # 读取配置
+        async with aiofiles.open(CONFIG_JSON, 'r', encoding='utf-8') as f:
+            content = await f.read()
+            data = json.loads(content)
+        
+        # 清空关键字段
+        data['sub_url'] = ""
+        data['user_info'] = UserInfo().dict()
+        
+        # 保存 JSON
+        async with aiofiles.open(CONFIG_JSON, 'w', encoding='utf-8') as f:
+            await f.write(json.dumps(data, indent=2))
+            
+        # 清空/重置 config.yaml 为最小可用配置，防止 Clash 报错
+        minimal_config = {
+            "port": 7890,
+            "socks-port": 7891,
+            "allow-lan": True,
+            "mode": "Rule",
+            "log-level": "info",
+            "external-controller": "0.0.0.0:9090",
+            "proxies": [],
+            "proxy-groups": [],
+            "rules": []
+        }
+        async with aiofiles.open(OUTPUT_YAML, 'w', encoding='utf-8') as f:
+            await f.write(yaml.dump(minimal_config))
+            
+        logger.info("🗑️ 已清空当前订阅及配置")
+        return {"status": "success", "msg": "订阅已清空"}
+    except Exception as e:
+        logger.error(f"清空订阅失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/backup")
-# [修改] 备份逻辑：将 include_sub 改为 include_history
 async def backup_config(include_history: bool = False):
     if not os.path.exists(CONFIG_JSON): raise HTTPException(status_code=404, detail="No config found")
     try:
-        # [修复] 指定 encoding='utf-8'
         async with aiofiles.open(CONFIG_JSON, 'r', encoding='utf-8') as f:
             content = await f.read()
             data = json.loads(content)
             
         if not include_history:
-            # 如果不包含历史记录，则清空历史记录和当前订阅URL
+            # 清除订阅敏感信息
             data['sub_url'] = ""
             data['sub_history'] = []
             
         temp_path = "/tmp/clashweb_backup.json"
-        # [修复] 指定 encoding='utf-8'
         async with aiofiles.open(temp_path, 'w', encoding='utf-8') as f:
             await f.write(json.dumps(data, indent=2))
             
@@ -500,27 +537,26 @@ async def backup_config(include_history: bool = False):
         raise HTTPException(500, detail=str(e))
 
 @app.post("/api/restore")
-# [修改] 还原逻辑：移除 restore_sub 参数，默认还原备份文件中的所有内容
 async def restore_config(file: UploadFile = File(...)):
     try:
         content = await file.read()
         backup_data = json.loads(content)
         if not isinstance(backup_data, dict): raise ValueError("Format Error")
         
-        final_data = backup_data
-        
-        # 还原逻辑简化：直接写入 backup_data，历史订阅信息（sub_url/sub_history）有则还原
-        
         current_data = {}
-        # [修复] 还原时读取当前数据，以保留配置完整性（若备份文件缺少某些配置）
         if os.path.exists(CONFIG_JSON):
             with open(CONFIG_JSON, 'r', encoding='utf-8') as f: current_data = json.load(f)
         
-        # 使用 ConfigModel 保证结构，并以备份数据为主，当前数据为辅（仅用于填充备份中没有的配置）
+        # [逻辑修复] 如果备份文件中 sub_url 为空，则保留当前的 sub_url 和 history，防止覆盖
+        if not backup_data.get('sub_url'):
+            backup_data['sub_url'] = current_data.get('sub_url', "")
+            # 如果备份里没有历史记录，也保留当前的
+            if not backup_data.get('sub_history'):
+                backup_data['sub_history'] = current_data.get('sub_history', [])
+        
         merged_data = ConfigModel(**current_data).dict()
-        merged_data.update(final_data)
+        merged_data.update(backup_data)
 
-        # [修复] 指定 encoding='utf-8'
         async with aiofiles.open(CONFIG_JSON, "w", encoding='utf-8') as f:
             await f.write(json.dumps(merged_data, indent=2))
         
@@ -539,12 +575,10 @@ async def restore_config(file: UploadFile = File(...)):
 @app.post("/api/restart_containers")
 async def restart_containers():
     try:
-        # [修复] 指定 encoding='utf-8'
         async with aiofiles.open(CONFIG_JSON, 'r', encoding='utf-8') as f:
             content = await f.read()
             data = json.loads(content)
         
-        # [修复] 兼容中文逗号
         container_str = data.get('restart_containers', '').replace('，', ',')
         targets = [n.strip() for n in container_str.split(',') if n.strip()]
 
@@ -572,31 +606,22 @@ async def download_config(req: DownloadRequest):
     if not req.url: raise HTTPException(status_code=400, detail="Missing URL")
 
     try:
-        # [修复] 指定 encoding='utf-8'
         async with aiofiles.open(CONFIG_JSON, 'r', encoding='utf-8') as f:
             content = await f.read()
             data = json.loads(content)
     except: data = {}
     
-    # 获取当前活动订阅 URL 的历史信息 (用于失败时的名称/信息回退)
     existing_history_entry = next((h for h in data.get('sub_history', []) if h.get('url') == req.url), None)
-
-    # 临时更新 URL 以供 process 逻辑使用
     data['sub_url'] = req.url
     
-    # 尝试处理订阅 (下载 + 获取信息)
     try:
-        # 获取最新信息 (fetched_info 是 fetch_original_userinfo 的返回值)
         fetched_info = await internal_process_subscription(req.url, data)
         
-        # --- 核心更新逻辑：更新历史记录 ---
-        
-        # [修改] 默认使用上次成功的名称和信息 (如果存在)，否则使用默认值
+        # [优化] 历史记录更新逻辑
         airport_name = existing_history_entry.get("name", "未知机场") if existing_history_entry else "未知机场"
         traffic_info = existing_history_entry.get("info", {}) if existing_history_entry else {}
         
         if fetched_info:
-            # 如果成功获取到新信息，则覆盖
             airport_name = fetched_info.get("name", "未知机场")
             traffic_info = {
                 "upload": fetched_info.get("upload", 0),
@@ -605,12 +630,9 @@ async def download_config(req: DownloadRequest):
                 "expire": fetched_info.get("expire", 0)
             }
         
-        # 2. 更新 history
         history = data.get('sub_history', [])
-        # 移除已存在的该 URL 记录 (避免重复)
         history = [h for h in history if h.get('url') != req.url]
         
-        # 构建新记录 (包含名称和流量快照)
         new_record = {
             "url": req.url,
             "date": datetime.now().strftime('%Y-%m-%d %H:%M'),
@@ -622,58 +644,87 @@ async def download_config(req: DownloadRequest):
         if len(history) > 10: history = history[:10]
         data['sub_history'] = history
         
-        # 保存到文件 (包含 user_info 的更新)
-        # [修复] 指定 encoding='utf-8'
         async with aiofiles.open(CONFIG_JSON, 'w', encoding='utf-8') as f:
             await f.write(json.dumps(data, indent=2))
             
     except Exception as e:
         logger.error(f"处理订阅出错: {e}")
-        # 出错时也要尝试保存下 URL，防止用户丢失输入
-        # [修复] 指定 encoding='utf-8'
+        # 即使出错也保存 URL
         async with aiofiles.open(CONFIG_JSON, 'w', encoding='utf-8') as f:
             await f.write(json.dumps(data, indent=2))
         raise HTTPException(status_code=500, detail=f"Processing Error: {str(e)}")
         
     return {"status": "success"}
 
+# --- 关键修改：分析接口 ---
 @app.get("/api/analysis")
 async def analyze_config():
+    """
+    分析配置，并标记组/规则是 'native' (原生/机场提供的) 还是 'custom' (用户添加的)。
+    """
     if not os.path.exists(OUTPUT_YAML) or os.path.getsize(OUTPUT_YAML) == 0:
         return {"status": "empty", "groups": [], "rules": [], "rule_count": 0, "regions": []}
     
     try:
-        # [修复] 指定 encoding='utf-8'
+        # 读取最终生成的 YAML
         async with aiofiles.open(OUTPUT_YAML, 'r', encoding='utf-8') as f:
             content = await f.read()
             config = yaml.safe_load(content)
             if not config: return {"status": "empty"}
         
-        json_rules_map = {}
+        # 读取用户配置 JSON，用于比对 Custom 数据
+        user_config = {}
         try:
             if os.path.exists(CONFIG_JSON):
-                # [修复] 指定 encoding='utf-8'
                 async with aiofiles.open(CONFIG_JSON, 'r', encoding='utf-8') as f:
                     content = await f.read()
-                    saved_data = json.loads(content)
-                    for r in saved_data.get('add_rules', []):
-                        clean = clean_rule_for_clash(r)
-                        json_rules_map[clean] = r
+                    user_config = json.loads(content)
         except: pass
+
+        # 1. 识别 Custom Groups
+        custom_group_names = set()
+        for g in user_config.get('add_groups', []):
+            if g.get('name'):
+                custom_group_names.add(g['name'])
+        
+        # 2. 识别 Custom Rules (需要 normalize 后比对)
+        custom_rules_map = {} # normalized -> raw
+        for r in user_config.get('add_rules', []):
+            clean = clean_rule_for_clash(r)
+            custom_rules_map[clean] = r
 
         rule_usage = Counter()
         final_display_rules = []
         
+        # 处理规则列表
         for r in config.get('rules', []):
             target = get_rule_target(r)
             if target: rule_usage[target] += 1
-            if r in json_rules_map:
-                final_display_rules.append(json_rules_map[r])
-            else:
-                final_display_rules.append(r)
+            
+            clean_r = clean_rule_for_clash(r)
+            is_custom = clean_r in custom_rules_map
+            
+            # 如果是自定义规则，优先使用用户输入的原始字符串(可能带备注)
+            display_str = custom_rules_map[clean_r] if is_custom else r
+            
+            final_display_rules.append({
+                "str": display_str,
+                "source": "custom" if is_custom else "native"
+            })
 
-        groups_info = [{"name": g['name'], "type": g.get('type', 'select'), "rule_count": rule_usage.get(g['name'], 0)} for g in config.get('proxy-groups', [])]
+        # 处理策略组列表
+        groups_info = []
+        for g in config.get('proxy-groups', []):
+            g_name = g['name']
+            source = "custom" if g_name in custom_group_names else "native"
+            groups_info.append({
+                "name": g_name,
+                "type": g.get('type', 'select'),
+                "rule_count": rule_usage.get(g_name, 0),
+                "source": source  # [新增] 来源字段
+            })
         
+        # 地区统计逻辑
         proxies = config.get('proxies', [])
         region_map = {
             "hk": "香港", "hong": "香港", "香港": "香港",
@@ -719,7 +770,7 @@ async def analyze_config():
         return {
             "status": "success", 
             "groups": groups_info, 
-            "rules": final_display_rules, 
+            "rules": final_display_rules, # 现在的结构是 [{"str": "...", "source": "..."}]
             "rule_count": len(final_display_rules), 
             "regions": final_regions, 
             "total_nodes": len(proxies), 

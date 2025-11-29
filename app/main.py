@@ -7,7 +7,7 @@ import docker
 import asyncio
 import re
 from datetime import datetime
-from urllib.parse import quote, unquote, urlparse
+from urllib.parse import quote
 from typing import List, Dict, Any, Optional
 from collections import Counter
 import pytz
@@ -69,21 +69,17 @@ app.add_middleware(
 
 # --- 数据模型 ---
 
+class SubHistoryItem(BaseModel):
+    url: str
+    date: str
+    remarks: Optional[str] = ""
+
 class UserInfo(BaseModel):
-    name: str = "" 
-    webUrl: str = "" # [新增] 机场官网地址
     upload: int = 0
     download: int = 0
     total: int = 0
     expire: int = 0
     update_time: str = ""
-
-class SubHistoryItem(BaseModel):
-    url: str
-    date: str
-    name: Optional[str] = "未知机场"
-    info: Optional[Dict[str, Any]] = {}
-    remarks: Optional[str] = ""
 
 class ConfigModel(BaseModel):
     sub_backend: Optional[str] = ""
@@ -136,6 +132,7 @@ def refresh_scheduler():
             logger.info("⛔️ 定时任务已关闭")
     except Exception as e:
         logger.error(f"Scheduler refresh failed: {e}")
+
 async def scheduled_update_task():
     logger.info(">>> ⏳ 开始执行定时更新任务 <<<")
     try:
@@ -151,14 +148,9 @@ async def scheduled_update_task():
         # 执行更新逻辑
         await internal_process_subscription(url, data)
         
-        # 保存 user_info 更新
-        async with aiofiles.open(CONFIG_JSON, 'w') as f:
-            await f.write(json.dumps(data, indent=2))
-
         logger.info("✅ 定时更新任务完成")
 
-        # [修复] 兼容中文逗号
-        container_str = data.get('restart_containers', '').replace('，', ',')
+        container_str = data.get('restart_containers', '')
         if container_str:
             try:
                 client = docker.from_env()
@@ -175,90 +167,48 @@ async def scheduled_update_task():
     except Exception as e:
         logger.error(f"❌ 定时任务执行出错: {e}")
 
-# --- 逻辑分离：任务1 获取原始流量信息和机场名称 ---
+# --- 逻辑分离：任务1 获取原始流量信息 ---
 async def fetch_original_userinfo(url: str) -> Optional[dict]:
-    """直接请求原始订阅链接，提取 Header 中的流量信息、profile-title 和官网地址"""
-    logger.info(f"📡 [信息获取] 正在请求原始链接: {url}")
+    """直接请求原始订阅链接，仅提取 Header，不下载 Body"""
+    logger.info(f"📡 [流量任务] 正在直接请求原始链接获取 Header: {url}")
     headers = {"User-Agent": "ClashForAndroid/2.5.12"} 
     
     try:
         async with httpx.AsyncClient(verify=False, follow_redirects=True) as client:
-            # 使用 GET 但通过 stream 立即关闭，避免下载大文件
+            # 使用 GET 但通过 stream 立即关闭，避免下载大文件，类似于 HEAD 但兼容性更好
             async with client.stream("GET", url, headers=headers, timeout=30.0) as resp:
+                # 打印 Headers 调试
+                # logger.info(f"原始链接响应头: {resp.headers}")
                 
-                # 1. 提取流量信息
                 user_info_header = None
                 for k, v in resp.headers.items():
                     if k.lower() == 'subscription-userinfo':
                         user_info_header = v
                         break
                 
-                info = {}
                 if user_info_header:
+                    info = {}
                     parts = user_info_header.split(';')
                     for part in parts:
                         if '=' in part:
                             kv = part.strip().split('=')
                             if len(kv) >= 2:
                                 info[kv[0].strip()] = int(kv[1].strip())
-
-                # 2. 提取机场名称
-                airport_name = ""
-                # A. 优先检查 profile-title
-                for k, v in resp.headers.items():
-                    if k.lower() == 'profile-title':
-                        try: airport_name = unquote(v)
-                        except: airport_name = v
-                        break
-                
-                # B. Content-Disposition 提取
-                if not airport_name:
-                    for k, v in resp.headers.items():
-                        if k.lower() == 'content-disposition':
-                            m = re.search(r'filename\*?=(?:UTF-8\'\')?([^;]+)', v, re.IGNORECASE)
-                            if m:
-                                raw_name = m.group(1).strip('"\'')
-                                try:
-                                    airport_name = unquote(raw_name)
-                                    if '.' in airport_name: airport_name = airport_name.rsplit('.', 1)[0]
-                                except: pass
-                            break
-                
-                # C. 域名兜底
-                if not airport_name:
-                    try: airport_name = urlparse(url).netloc
-                    except: airport_name = "未知订阅"
-
-                # 3. [新增] 提取官网地址 (webUrl)
-                web_url = ""
-                # A. 尝试从响应头获取 (Clash 标准头)
-                for k, v in resp.headers.items():
-                    if k.lower() == 'profile-web-page-url':
-                        web_url = v.strip()
-                        break
-                
-                # B. 域名兜底：如果头信息没有，使用 subscription url 的 root domain
-                if not web_url:
-                    try:
-                        parsed = urlparse(url)
-                        # 简单的假设：订阅域名的根通常是官网
-                        web_url = f"{parsed.scheme}://{parsed.netloc}"
-                    except: pass
-
-                result = {
-                    "name": airport_name,
-                    "webUrl": web_url, # [新增]
-                    "upload": info.get("upload", 0),
-                    "download": info.get("download", 0),
-                    "total": info.get("total", 0),
-                    "expire": info.get("expire", 0),
-                    "update_time": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                }
-                logger.info(f"✅ [信息获取] 成功: {result}")
-                return result
-
+                    
+                    result = {
+                        "upload": info.get("upload", 0),
+                        "download": info.get("download", 0),
+                        "total": info.get("total", 0),
+                        "expire": info.get("expire", 0),
+                        "update_time": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    }
+                    logger.info(f"✅ [流量任务] 成功获取: {result}")
+                    return result
+                else:
+                    logger.warning("⚠️ [流量任务] 原始链接未返回 subscription-userinfo")
+                    return None
     except Exception as e:
-        logger.warning(f"❌ [信息获取] 请求失败: {e}")
+        logger.warning(f"❌ [流量任务] 请求失败: {e}")
         return None
 
 # --- 逻辑分离：任务2 下载并转换配置 ---
@@ -272,6 +222,7 @@ async def download_and_convert_config(url: str, data: dict) -> bool:
     encoded_sub_url = quote(url, safe='') 
     full_url = f"{base_url}{encoded_sub_url}"
     
+    # 转换后端通常模拟 Chrome
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
 
     logger.info(f"⬇️ [下载任务] 正在请求转换后端: {full_url}")
@@ -302,8 +253,12 @@ async def download_and_convert_config(url: str, data: dict) -> bool:
     # 应用补丁 (Patch)
     try:
         final_config = apply_patch(config, data)
+        
+        # 强制 Block Style 写入，防止乱码
         output_str = yaml.dump(final_config, allow_unicode=True, sort_keys=False, default_flow_style=False, width=float("inf"))
-        yaml.safe_load(output_str) # 校验
+        
+        # 校验
+        yaml.safe_load(output_str)
     except Exception as e:
         logger.error(f"❌ [下载任务] 配置处理或校验失败: {e}")
         raise Exception(f"配置处理失败: {e}")
@@ -316,18 +271,18 @@ async def download_and_convert_config(url: str, data: dict) -> bool:
     return True
 
 # --- 主流程 ---
-async def internal_process_subscription(url: str, data: dict) -> Optional[dict]:
+async def internal_process_subscription(url: str, data: dict):
     """
     并发执行：
-    1. 从原始链接获取流量信息和名称
-    2. 从转换后端获取配置文件
-    
-    返回：fetch_original_userinfo 的结果 (可能为 None)
+    1. 从原始链接获取流量信息 (不影响配置生成)
+    2. 从转换后端获取配置文件 (核心任务)
     """
     
+    # 创建两个任务
     task_traffic = fetch_original_userinfo(url)
     task_download = download_and_convert_config(url, data)
     
+    # 并发执行，return_exceptions=True 确保一个失败不会中断另一个
     results = await asyncio.gather(task_traffic, task_download, return_exceptions=True)
     
     fetched_user_info = results[0]
@@ -336,15 +291,17 @@ async def internal_process_subscription(url: str, data: dict) -> Optional[dict]:
     # 处理流量信息结果
     if isinstance(fetched_user_info, dict):
         data['user_info'] = fetched_user_info
-        # 注意：这里只更新内存中的 data 对象，调用者负责写入 config.json
+        # 更新 config.json
+        async with aiofiles.open(CONFIG_JSON, 'w') as f:
+            await f.write(json.dumps(data, indent=2))
     elif isinstance(fetched_user_info, Exception):
+        # 流量获取失败仅记录日志，不抛出异常阻断流程
         logger.warning(f"流量信息获取任务异常: {fetched_user_info}")
 
     # 处理下载结果
     if isinstance(download_result, Exception):
+        # 下载失败必须抛出异常给前端
         raise download_result
-
-    return fetched_user_info if isinstance(fetched_user_info, dict) else None
 
 def get_rule_target(rule_str: str) -> str:
     try:
@@ -414,6 +371,7 @@ def apply_patch(config: dict, patch: dict) -> dict:
                 config.setdefault('rules', []).insert(0, clean_r)
              
     return config
+
 @app.on_event("startup")
 async def startup_event():
     init_data()
@@ -440,15 +398,8 @@ async def get_data():
             async with aiofiles.open(CONFIG_JSON, 'r') as f:
                 content = await f.read()
                 data = json.loads(content)
-                # 确保 user_info 结构完整
                 if 'user_info' not in data:
-                    data['user_info'] = UserInfo().dict()
-                else:
-                    # 补全可能缺失的字段 (如 webUrl)
-                    default_info = UserInfo().dict()
-                    for k, v in default_info.items():
-                        if k not in data['user_info']:
-                            data['user_info'][k] = v
+                    data['user_info'] = {"upload":0, "download":0, "total":0, "expire":0, "update_time": ""}
                 return data
         return {}
     except: return {}
@@ -526,11 +477,8 @@ async def restart_containers():
         async with aiofiles.open(CONFIG_JSON, 'r') as f:
             content = await f.read()
             data = json.loads(content)
-        
-        # [修复] 兼容中文逗号
-        container_str = data.get('restart_containers', '').replace('，', ',')
-        targets = [n.strip() for n in container_str.split(',') if n.strip()]
-
+            
+        targets = [n.strip() for n in data.get('restart_containers', '').split(',') if n.strip()]
         if not targets: raise HTTPException(400, detail="未设置容器")
         
         client = docker.from_env()
@@ -560,53 +508,22 @@ async def download_config(req: DownloadRequest):
             data = json.loads(content)
     except: data = {}
     
-    # 临时更新 URL 以供 process 逻辑使用
     data['sub_url'] = req.url
+    history = data.get('sub_history', [])
+    # 简单的历史去重逻辑
+    history = [h for h in history if h['url'] != req.url]
+    history.insert(0, {"url": req.url, "date": datetime.now().strftime('%Y-%m-%d %H:%M')})
+    if len(history) > 10: history = history[:10]
+    data['sub_history'] = history
     
-    # 尝试处理订阅 (下载 + 获取信息)
+    async with aiofiles.open(CONFIG_JSON, 'w') as f:
+        await f.write(json.dumps(data, indent=2))
+
     try:
-        # 获取最新信息 (fetched_info 是 fetch_original_userinfo 的返回值)
-        fetched_info = await internal_process_subscription(req.url, data)
-        
-        # --- 核心更新逻辑：更新历史记录 ---
-        airport_name = "未知机场"
-        traffic_info = {}
-        
-        if fetched_info:
-            airport_name = fetched_info.get("name", "未知机场")
-            traffic_info = {
-                "upload": fetched_info.get("upload", 0),
-                "download": fetched_info.get("download", 0),
-                "total": fetched_info.get("total", 0),
-                "expire": fetched_info.get("expire", 0)
-            }
-        
-        # 2. 更新 history
-        history = data.get('sub_history', [])
-        # 移除已存在的该 URL 记录 (避免重复)
-        history = [h for h in history if h.get('url') != req.url]
-        
-        # 构建新记录 (包含名称和流量快照)
-        new_record = {
-            "url": req.url,
-            "date": datetime.now().strftime('%Y-%m-%d %H:%M'),
-            "name": airport_name,
-            "info": traffic_info
-        }
-        history.insert(0, new_record)
-        
-        if len(history) > 10: history = history[:10]
-        data['sub_history'] = history
-        
-        # 保存到文件 (包含 user_info 的更新)
-        async with aiofiles.open(CONFIG_JSON, 'w') as f:
-            await f.write(json.dumps(data, indent=2))
-            
+        # 调用新的逻辑
+        await internal_process_subscription(req.url, data)
     except Exception as e:
         logger.error(f"处理订阅出错: {e}")
-        # 出错时也要尝试保存下 URL，防止用户丢失输入
-        async with aiofiles.open(CONFIG_JSON, 'w') as f:
-            await f.write(json.dumps(data, indent=2))
         raise HTTPException(status_code=500, detail=f"Processing Error: {str(e)}")
         
     return {"status": "success"}

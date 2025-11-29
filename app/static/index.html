@@ -39,7 +39,6 @@
             -webkit-font-smoothing: antialiased;
         }
 
-        /* 卡片基础样式 */
         .card-bg {
             background: #ffffff;
             border-radius: var(--card-radius);
@@ -68,7 +67,6 @@
             border-color: rgba(99, 102, 241, 0.3);
         }
 
-        /* 选中状态 */
         .card-selected {
             border-color: #ef4444 !important;
             background-color: rgba(239, 68, 68, 0.05) !important;
@@ -78,7 +76,6 @@
             background-color: rgba(239, 68, 68, 0.15) !important;
         }
 
-        /* 按钮与交互 */
         .btn-soft {
             border-radius: 10px;
             padding: .5rem .8rem;
@@ -90,7 +87,6 @@
             transform: scale(0.98);
         }
 
-        /* 背景纹理 */
         .bg-dot-pattern {
             background-color: #f9f9f9;
             background-image: radial-gradient(#d3d3d3 0.5px, transparent 0.5px);
@@ -103,7 +99,6 @@
             background-image: radial-gradient(rgba(255, 255, 255, 0.1) 0.5px, transparent 0.5px);
         }
 
-        /* 区域卡片 */
         .region-card {
             position: relative;
             overflow: hidden;
@@ -127,7 +122,6 @@
             transform: rotate(-12deg);
         }
 
-        /* 动画 */
         .fade-enter-active,
         .fade-leave-active {
             transition: opacity 0.2s ease;
@@ -188,7 +182,6 @@
             z-index: 9000;
         }
 
-        /* 标签样式 */
         .badge-native {
             background: rgba(59, 130, 246, 0.1);
             color: #3b82f6;
@@ -807,6 +800,7 @@
                             isRuleEditMode.value = false;
                         }
                         await saveData();
+                        // [关键修复] 强制触发后端重新生成配置文件
                         if (configData.sub_url) await fetch('/api/download', {
                             method: 'POST',
                             headers: {
@@ -899,6 +893,16 @@
                         configData.add_rules.unshift(r);
                     }
                     await saveData();
+                    // [关键修复] 强制触发后端重新生成配置文件
+                    if (configData.sub_url) await fetch('/api/download', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            url: configData.sub_url
+                        })
+                    });
                     await loadData();
                     ruleInput.raw = '';
                     showToast("规则已添加");
@@ -911,6 +915,16 @@
                         proxies: ['DIRECT', 'REJECT']
                     });
                     await saveData();
+                    // [关键修复] 强制触发后端重新生成配置文件
+                    if (configData.sub_url) await fetch('/api/download', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            url: configData.sub_url
+                        })
+                    });
                     await loadData();
                     groupInput.name = '';
                     showToast("组已添加");
@@ -974,6 +988,11 @@
                     } finally {
                         hideLoading()
                     }
+                }
+
+                const promptAndDownloadBackup = () => {
+                    // [修复] 不再弹出原生 confirm，直接打开链接 (逻辑已移至模板的 checkbox 控制)
+                    window.open(backupUrl.value);
                 }
 
                 const insertIcon = (i) => groupInput.name = i + ' ' + groupInput.name
@@ -1104,6 +1123,7 @@
                     },
                     downloadConfig,
                     restoreConfig,
+                    promptAndDownloadBackup,
                     applyHistory,
                     restartContainers,
                     insertIcon,

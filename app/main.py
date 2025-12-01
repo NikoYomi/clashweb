@@ -667,10 +667,10 @@ async def analyze_config():
             "ca": "加拿大", "can": "加拿大", "加拿大": "加拿大",
             "tr": "土耳其", "tur": "土耳其", "土": "土耳其",
             "fr": "法国", "france": "法国", "法": "法国",
-            "ru": "俄罗斯"， "russia": "俄罗斯", "俄": "俄罗斯",
-            "vn": "越南"， "viet": "越南", "越南": "越南",
-            "ae": "阿联酋"， "uae": "阿联酋", "阿联酋": "阿联酋", "dubai": "迪拜", "迪拜": "迪拜",
-            "my": "马来西亚"， "mal": "马来西亚", "马来西亚": "马来西亚",
+            "ru": "俄罗斯", "russia": "俄罗斯", "俄": "俄罗斯",
+            "vn": "越南", "viet": "越南", "越南": "越南",
+            "ae": "阿联酋", "uae": "阿联酋", "阿联酋": "阿联酋", "dubai": "迪拜", "迪拜": "迪拜",
+            "my": "马来西亚", "mal": "马来西亚", "马来西亚": "马来西亚",
             "th": "泰国", "thai": "泰国", "泰国": "泰国",
             "kh": "柬埔寨", "cam": "柬埔寨", "柬埔寨": "柬埔寨",
             "br": "巴西", "bra": "巴西", "巴西": "巴西",
@@ -681,10 +681,10 @@ async def analyze_config():
             "ch": "瑞士", "swi": "瑞士", "瑞士": "瑞士"
         }
         icons = {
-            "香港": "🇭🇰"， "台湾": "🇹🇼", "日本": "🇯🇵", "美国": "🇺🇸",
-            "新加坡": "🇸🇬"， "韩国": "🇰🇷", "英国": "🇬🇧", "德国": "🇩🇪",
-            "加拿大": "🇨🇦"， "土耳其": "🇹🇷", "法国": "🇫🇷", "俄罗斯": "🇷🇺",
-            "越南": "🇻🇳"， "阿联酋": "🇦🇪", "迪拜": "🇦🇪", "马来西亚": "🇲🇾", "泰国": "🇹🇭",
+            "香港": "🇭🇰", "台湾": "🇹🇼", "日本": "🇯🇵", "美国": "🇺🇸",
+            "新加坡": "🇸🇬", "韩国": "🇰🇷", "英国": "🇬🇧", "德国": "🇩🇪",
+            "加拿大": "🇨🇦", "土耳其": "🇹🇷", "法国": "🇫🇷", "俄罗斯": "🇷🇺",
+            "越南": "🇻🇳", "阿联酋": "🇦🇪", "迪拜": "🇦🇪", "马来西亚": "🇲🇾", "泰国": "🇹🇭",
             "柬埔寨": "🇰🇭", "巴西": "🇧🇷", "澳大利亚": "🇦🇺", "印度": "🇮🇳",
             "印度尼西亚": "🇮🇩", "荷兰": "🇳🇱", "瑞士": "🇨🇭", "其他": "🌐"
         }
@@ -693,25 +693,25 @@ async def analyze_config():
         for p in proxies:
             name = p.get('name', '').lower()
             found = False
-            for k, v 在 region_map.items():
-                if k 在 name:
+            for k, v in region_map.items():
+                if k in name:
                     if v not in counts: counts[v] = {"name": v, "icon": icons.get(v, "🌐"), "count": 0}
                     counts[v]['count'] += 1
                     found = True
                     break
             if not found:
-                if "其他" not 在 counts: counts["其他"] = {"name": "其他", "icon": "🌐", "count": 0}
+                if "其他" not in counts: counts["其他"] = {"name": "其他", "icon": "🌐", "count": 0}
                 counts["其他"]['count'] += 1
         
         regions = sorted(counts.values(), key=lambda x: x['count'], reverse=True)
-        final_regions = [r for r 在 regions if r['name'] != '其他']
+        final_regions = [r for r in regions if r['name'] != '其他']
         if "其他" in counts: final_regions.append(counts["其他"])
 
-        mtime = os.path。getmtime(OUTPUT_YAML)
+        mtime = os.path.getmtime(OUTPUT_YAML)
         ts_str = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
         
         return {
-            "status": "success"， 
+            "status": "success", 
             "groups": groups_info, 
             "rules": final_display_rules, 
             "rule_count": len(final_display_rules), 
@@ -723,6 +723,6 @@ async def analyze_config():
     except Exception as e: return {"status": "error", "msg": str(e)}
 
 if os.path.exists("images"):
-    app.mount("/images"， StaticFiles(directory="images"), name="images")
+    app.mount("/images", StaticFiles(directory="images"), name="images")
 
 app.mount("/", StaticFiles(directory="static", html=True), name="static")

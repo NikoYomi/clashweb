@@ -7,7 +7,7 @@ import docker
 import asyncio
 import re
 from datetime import datetime
-from urllib.parse import quote
+from urllib.parse import quote, unquote, urlparse, parse_qs
 from typing import List, Dict, Any, Optional
 from collections import Counter
 import pytz
@@ -70,11 +70,19 @@ app.add_middleware(
 # --- 数据模型 ---
 
 class SubHistoryItem(BaseModel):
+    name: Optional[str] = "" 
     url: str
     date: str
     remarks: Optional[str] = ""
+    web_url: Optional[str] = "" 
+    upload: int = 0
+    download: int = 0
+    total: int = 0
+    expire: int = 0
 
 class UserInfo(BaseModel):
+    name: str = ""  
+    web_url: str = "" 
     upload: int = 0
     download: int = 0
     total: int = 0
@@ -145,7 +153,6 @@ async def scheduled_update_task():
             logger.warning("未配置订阅链接，跳过更新")
             return
 
-        # 执行更新逻辑
         await internal_process_subscription(url, data)
         
         logger.info("✅ 定时更新任务完成")
@@ -167,49 +174,145 @@ async def scheduled_update_task():
     except Exception as e:
         logger.error(f"❌ 定时任务执行出错: {e}")
 
-# --- 逻辑分离：任务1 获取原始流量信息 ---
+# --- 辅助函数：从 HTML 提取 Title ---
+def extract_title_from_html(html_content: str) -> Optional[str]:
+    try:
+        title_match = re.search(r'<title>(.*?)</title>', html_content, re.IGNORECASE | re.DOTALL)
+        if title_match:
+            title = title_match.group(1).strip()
+            # 简单清洗：如果标题太长或者是错误页面，则认为无效
+            if title and len(title) < 50 and "404" not in title and "Error" not in title:
+                return title
+    except: pass
+    return None
+
+# --- 逻辑分离：任务1 智能获取信息 ---
 async def fetch_original_userinfo(url: str) -> Optional[dict]:
-    """直接请求原始订阅链接，仅提取 Header，不下载 Body"""
-    logger.info(f"📡 [流量任务] 正在直接请求原始链接获取 Header: {url}")
+    """智能分析：流量 + 文件名解析 + 官网标题抓取(支持主域名回退)"""
+    logger.info(f"📡 [流量任务] 分析订阅: {url}")
     headers = {"User-Agent": "ClashForAndroid/2.5.12"} 
     
+    # 1. 基础解析
+    parsed_uri = urlparse(url)
+    current_host = parsed_uri.netloc
+    web_url = f"{parsed_uri.scheme}://{current_host}"
+    
+    # 尝试计算主域名 (例如 sub.a.com -> a.com)
+    root_url = None
+    host_parts = current_host.split('.')
+    if len(host_parts) > 2 and not re.match(r'^\d+\.\d+\.\d+\.\d+$', current_host):
+        # 简单的取后两段作为主域名 (适用于 .com, .net 等，对 .co.uk 可能不准但足够用)
+        root_domain = ".".join(host_parts[-2:])
+        root_url = f"{parsed_uri.scheme}://{root_domain}"
+
+    # 2. 默认名称兜底
+    fallback_name = "未知订阅"
+    if parsed_uri.fragment: fallback_name = unquote(parsed_uri.fragment)
+    else:
+        qs = parse_qs(parsed_uri.query)
+        if 'name' in qs: fallback_name = qs['name'][0]
+        elif 'remarks' in qs: fallback_name = qs['remarks'][0]
+        else: fallback_name = current_host
+
+    sub_name = fallback_name
+    info = {}
+
     try:
         async with httpx.AsyncClient(verify=False, follow_redirects=True) as client:
-            # 使用 GET 但通过 stream 立即关闭，避免下载大文件，类似于 HEAD 但兼容性更好
-            async with client.stream("GET", url, headers=headers, timeout=30.0) as resp:
-                # 打印 Headers 调试
-                # logger.info(f"原始链接响应头: {resp.headers}")
+            # --- 阶段 A: 请求订阅链接 (拿流量 + 响应头文件名) ---
+            try:
+                async with client.stream("GET", url, headers=headers, timeout=30.0) as resp:
+                    # 增强版 Content-Disposition 解析
+                    cd = resp.headers.get("content-disposition", "")
+                    if cd:
+                        # 优先尝试 filename*=utf-8''xxx 格式
+                        fn_star = re.search(r"filename\*=UTF-8''(.+)", cd, re.IGNORECASE)
+                        if fn_star:
+                            sub_name = unquote(fn_star.group(1))
+                        else:
+                            # 尝试 filename="xxx"
+                            fn_quote = re.search(r'filename="(.+?)"', cd, re.IGNORECASE)
+                            if fn_quote:
+                                sub_name = unquote(fn_quote.group(1))
+                            else:
+                                # 尝试 filename=xxx
+                                fn_simple = re.search(r'filename=([^;]+)', cd, re.IGNORECASE)
+                                if fn_simple:
+                                    sub_name = unquote(fn_simple.group(1).strip().strip('"'))
+                        
+                        # 清理后缀
+                        if sub_name and sub_name != fallback_name:
+                            if sub_name.lower().endswith(('.yaml', '.yml', '.conf', '.txt')):
+                                sub_name = sub_name.rsplit('.', 1)[0]
+
+                    # 解析流量头
+                    user_info_header = None
+                    for k, v in resp.headers.items():
+                        if k.lower() == 'subscription-userinfo':
+                            user_info_header = v
+                            break
+                    if user_info_header:
+                        parts = user_info_header.split(';')
+                        for part in parts:
+                            if '=' in part:
+                                kv = part.strip().split('=')
+                                if len(kv) >= 2: info[kv[0].strip()] = int(kv[1].strip())
+            except Exception as e:
+                logger.warning(f"订阅链接请求异常: {e}")
+
+            # --- 阶段 B: 如果名字未获取，尝试爬取官网标题 ---
+            if sub_name == fallback_name or sub_name == current_host:
+                browser_headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
+                }
                 
-                user_info_header = None
-                for k, v in resp.headers.items():
-                    if k.lower() == 'subscription-userinfo':
-                        user_info_header = v
-                        break
-                
-                if user_info_header:
-                    info = {}
-                    parts = user_info_header.split(';')
-                    for part in parts:
-                        if '=' in part:
-                            kv = part.strip().split('=')
-                            if len(kv) >= 2:
-                                info[kv[0].strip()] = int(kv[1].strip())
-                    
-                    result = {
-                        "upload": info.get("upload", 0),
-                        "download": info.get("download", 0),
-                        "total": info.get("total", 0),
-                        "expire": info.get("expire", 0),
-                        "update_time": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    }
-                    logger.info(f"✅ [流量任务] 成功获取: {result}")
-                    return result
-                else:
-                    logger.warning("⚠️ [流量任务] 原始链接未返回 subscription-userinfo")
-                    return None
+                # 策略 B1: 访问当前域名 (如 sub.site.com)
+                title_found = False
+                if web_url:
+                    logger.info(f"🕵️ 尝试访问: {web_url}")
+                    try:
+                        r = await client.get(web_url, headers=browser_headers, timeout=5.0)
+                        if r.status_code == 200:
+                            t = extract_title_from_html(r.text[:20000])
+                            if t: 
+                                sub_name = t
+                                title_found = True
+                                logger.info(f"✅ 从子域名获取标题: {t}")
+                    except: pass
+
+                # 策略 B2: 如果B1失败，且有主域名，访问主域名 (如 site.com)
+                if not title_found and root_url and root_url != web_url:
+                    logger.info(f"🕵️ 尝试回退访问主域名: {root_url}")
+                    try:
+                        r = await client.get(root_url, headers=browser_headers, timeout=5.0)
+                        if r.status_code == 200:
+                            t = extract_title_from_html(r.text[:20000])
+                            if t: 
+                                sub_name = t
+                                # 关键：更新官网地址为主域名，修复点击跳转
+                                web_url = root_url 
+                                logger.info(f"✅ 从主域名获取标题: {t}")
+                    except: pass
+
+            result = {
+                "name": sub_name, 
+                "web_url": web_url,
+                "upload": info.get("upload", 0),
+                "download": info.get("download", 0),
+                "total": info.get("total", 0),
+                "expire": info.get("expire", 0),
+                "update_time": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            }
+            return result
+
     except Exception as e:
-        logger.warning(f"❌ [流量任务] 请求失败: {e}")
-        return None
+        logger.error(f"❌ 获取信息流程失败: {e}")
+        return {
+            "name": fallback_name, "web_url": web_url,
+            "upload": 0, "download": 0, "total": 0, "expire": 0,
+            "update_time": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
 
 # --- 逻辑分离：任务2 下载并转换配置 ---
 async def download_and_convert_config(url: str, data: dict) -> bool:
@@ -222,7 +325,6 @@ async def download_and_convert_config(url: str, data: dict) -> bool:
     encoded_sub_url = quote(url, safe='') 
     full_url = f"{base_url}{encoded_sub_url}"
     
-    # 转换后端通常模拟 Chrome
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
 
     logger.info(f"⬇️ [下载任务] 正在请求转换后端: {full_url}")
@@ -241,7 +343,6 @@ async def download_and_convert_config(url: str, data: dict) -> bool:
         logger.error(f"❌ [下载任务] 下载失败: {e}")
         raise e
 
-    # 解析 YAML
     try:
         config = yaml.safe_load(config_yaml)
         if not isinstance(config, dict):
@@ -250,20 +351,14 @@ async def download_and_convert_config(url: str, data: dict) -> bool:
         logger.error(f"❌ [下载任务] YAML 解析失败: {e}")
         raise Exception("YAML 解析失败，内容可能不是有效的 Clash 配置")
 
-    # 应用补丁 (Patch)
     try:
         final_config = apply_patch(config, data)
-        
-        # 强制 Block Style 写入，防止乱码
         output_str = yaml.dump(final_config, allow_unicode=True, sort_keys=False, default_flow_style=False, width=float("inf"))
-        
-        # 校验
         yaml.safe_load(output_str)
     except Exception as e:
         logger.error(f"❌ [下载任务] 配置处理或校验失败: {e}")
         raise Exception(f"配置处理失败: {e}")
 
-    # 写入文件
     async with aiofiles.open(OUTPUT_YAML, 'w', encoding='utf-8') as f:
         await f.write(output_str)
     
@@ -272,35 +367,22 @@ async def download_and_convert_config(url: str, data: dict) -> bool:
 
 # --- 主流程 ---
 async def internal_process_subscription(url: str, data: dict):
-    """
-    并发执行：
-    1. 从原始链接获取流量信息 (不影响配置生成)
-    2. 从转换后端获取配置文件 (核心任务)
-    """
-    
-    # 创建两个任务
     task_traffic = fetch_original_userinfo(url)
     task_download = download_and_convert_config(url, data)
     
-    # 并发执行，return_exceptions=True 确保一个失败不会中断另一个
     results = await asyncio.gather(task_traffic, task_download, return_exceptions=True)
     
     fetched_user_info = results[0]
     download_result = results[1]
     
-    # 处理流量信息结果
     if isinstance(fetched_user_info, dict):
         data['user_info'] = fetched_user_info
-        # 更新 config.json
         async with aiofiles.open(CONFIG_JSON, 'w') as f:
             await f.write(json.dumps(data, indent=2))
     elif isinstance(fetched_user_info, Exception):
-        # 流量获取失败仅记录日志，不抛出异常阻断流程
         logger.warning(f"流量信息获取任务异常: {fetched_user_info}")
 
-    # 处理下载结果
     if isinstance(download_result, Exception):
-        # 下载失败必须抛出异常给前端
         raise download_result
 
 def get_rule_target(rule_str: str) -> str:
@@ -399,7 +481,7 @@ async def get_data():
                 content = await f.read()
                 data = json.loads(content)
                 if 'user_info' not in data:
-                    data['user_info'] = {"upload":0, "download":0, "total":0, "expire":0, "update_time": ""}
+                    data['user_info'] = {"name": "", "web_url": "", "upload":0, "download":0, "total":0, "expire":0, "update_time": ""}
                 return data
         return {}
     except: return {}
@@ -508,23 +590,32 @@ async def download_config(req: DownloadRequest):
             data = json.loads(content)
     except: data = {}
     
-    data['sub_url'] = req.url
-    history = data.get('sub_history', [])
-    # 简单的历史去重逻辑
-    history = [h for h in history if h['url'] != req.url]
-    history.insert(0, {"url": req.url, "date": datetime.now().strftime('%Y-%m-%d %H:%M')})
-    if len(history) > 10: history = history[:10]
-    data['sub_history'] = history
-    
-    async with aiofiles.open(CONFIG_JSON, 'w') as f:
-        await f.write(json.dumps(data, indent=2))
-
     try:
-        # 调用新的逻辑
         await internal_process_subscription(req.url, data)
     except Exception as e:
         logger.error(f"处理订阅出错: {e}")
         raise HTTPException(status_code=500, detail=f"Processing Error: {str(e)}")
+
+    u_info = data.get('user_info', {})
+    
+    history = data.get('sub_history', [])
+    history = [h for h in history if h['url'] != req.url]
+    history.insert(0, {
+        "name": u_info.get('name', '未知订阅'),
+        "web_url": u_info.get('web_url', ''), 
+        "url": req.url, 
+        "date": datetime.now().strftime('%Y-%m-%d %H:%M'),
+        "upload": u_info.get('upload', 0),    
+        "download": u_info.get('download', 0),
+        "total": u_info.get('total', 0),
+        "expire": u_info.get('expire', 0)
+    })
+    if len(history) > 10: history = history[:10]
+    data['sub_history'] = history
+    data['sub_url'] = req.url
+    
+    async with aiofiles.open(CONFIG_JSON, 'w') as f:
+        await f.write(json.dumps(data, indent=2))
         
     return {"status": "success"}
 
@@ -576,37 +667,51 @@ async def analyze_config():
             "ca": "加拿大", "can": "加拿大", "加拿大": "加拿大",
             "tr": "土耳其", "tur": "土耳其", "土": "土耳其",
             "fr": "法国", "france": "法国", "法": "法国",
-            "ru": "俄罗斯", "russia": "俄罗斯", "俄": "俄罗斯"
+            "ru": "俄罗斯"， "russia": "俄罗斯", "俄": "俄罗斯",
+            "vn": "越南"， "viet": "越南", "越南": "越南",
+            "ae": "阿联酋"， "uae": "阿联酋", "阿联酋": "阿联酋", "dubai": "迪拜", "迪拜": "迪拜",
+            "my": "马来西亚"， "mal": "马来西亚", "马来西亚": "马来西亚",
+            "th": "泰国", "thai": "泰国", "泰国": "泰国",
+            "kh": "柬埔寨", "cam": "柬埔寨", "柬埔寨": "柬埔寨",
+            "br": "巴西", "bra": "巴西", "巴西": "巴西",
+            "au": "澳大利亚", "aus": "澳大利亚", "澳大利亚": "澳大利亚",
+            "in": "印度", "ind": "印度", "印度": "印度",
+            "id": "印度尼西亚", "indo": "印度尼西亚", "印度尼西亚": "印度尼西亚",
+            "nl": "荷兰", "net": "荷兰", "荷兰": "荷兰",
+            "ch": "瑞士", "swi": "瑞士", "瑞士": "瑞士"
         }
         icons = {
-            "香港": "🇭🇰", "台湾": "🇹🇼", "日本": "🇯🇵", "美国": "🇺🇸", 
-            "新加坡": "🇸🇬", "韩国": "🇰🇷", "英国": "🇬🇧", "德国": "🇩🇪", 
-            "加拿大": "🇨🇦", "土耳其": "🇹🇷", "法国": "🇫🇷", "俄罗斯": "🇷🇺", "其他": "🌐"
+            "香港": "🇭🇰"， "台湾": "🇹🇼", "日本": "🇯🇵", "美国": "🇺🇸",
+            "新加坡": "🇸🇬"， "韩国": "🇰🇷", "英国": "🇬🇧", "德国": "🇩🇪",
+            "加拿大": "🇨🇦"， "土耳其": "🇹🇷", "法国": "🇫🇷", "俄罗斯": "🇷🇺",
+            "越南": "🇻🇳"， "阿联酋": "🇦🇪", "迪拜": "🇦🇪", "马来西亚": "🇲🇾", "泰国": "🇹🇭",
+            "柬埔寨": "🇰🇭", "巴西": "🇧🇷", "澳大利亚": "🇦🇺", "印度": "🇮🇳",
+            "印度尼西亚": "🇮🇩", "荷兰": "🇳🇱", "瑞士": "🇨🇭", "其他": "🌐"
         }
         
         counts = {}
         for p in proxies:
             name = p.get('name', '').lower()
             found = False
-            for k, v in region_map.items():
-                if k in name:
+            for k, v 在 region_map.items():
+                if k 在 name:
                     if v not in counts: counts[v] = {"name": v, "icon": icons.get(v, "🌐"), "count": 0}
                     counts[v]['count'] += 1
                     found = True
                     break
             if not found:
-                if "其他" not in counts: counts["其他"] = {"name": "其他", "icon": "🌐", "count": 0}
+                if "其他" not 在 counts: counts["其他"] = {"name": "其他", "icon": "🌐", "count": 0}
                 counts["其他"]['count'] += 1
         
         regions = sorted(counts.values(), key=lambda x: x['count'], reverse=True)
-        final_regions = [r for r in regions if r['name'] != '其他']
+        final_regions = [r for r 在 regions if r['name'] != '其他']
         if "其他" in counts: final_regions.append(counts["其他"])
 
-        mtime = os.path.getmtime(OUTPUT_YAML)
+        mtime = os.path。getmtime(OUTPUT_YAML)
         ts_str = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
         
         return {
-            "status": "success", 
+            "status": "success"， 
             "groups": groups_info, 
             "rules": final_display_rules, 
             "rule_count": len(final_display_rules), 
@@ -617,8 +722,7 @@ async def analyze_config():
         }
     except Exception as e: return {"status": "error", "msg": str(e)}
 
-# --- 静态文件挂载 ---
 if os.path.exists("images"):
-    app.mount("/images", StaticFiles(directory="images"), name="images")
+    app.mount("/images"， StaticFiles(directory="images"), name="images")
 
 app.mount("/", StaticFiles(directory="static", html=True), name="static")

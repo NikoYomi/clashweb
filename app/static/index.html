@@ -62,9 +62,12 @@
                     <button @click="openSettings" title="设置" class="w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition flex items-center justify-center text-gray-600 dark:text-gray-300">
                         <i class="fas fa-cog text-xl"></i>
                     </button>
-                    <button @click="toggleTheme" class="w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition flex items-center justify-center text-yellow-500">
+                    <button @click="toggleTheme" title="切换主题" class="w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition flex items-center justify-center text-yellow-500">
                         <i :class="isDark ? 'fas fa-sun' : 'fas fa-moon'" class="text-xl"></i>
                     </button>
+                    <a href="https://github.com/NikoYomi/clashweb" target="_blank" title="GitHub" class="w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition flex items-center justify-center text-gray-600 dark:text-gray-300">
+                        <i class="fab fa-github text-xl"></i>
+                    </a>
                 </div>
             </div>
         </header>
@@ -756,12 +759,12 @@
                 }
                 
                 const deleteHistory = async (idx) => {
-                    configData.sub_history。splice(idx， 1);
+                    configData.sub_history.splice(idx, 1);
                     await saveData();
                 }
 
                 const downloadConfig = async () => {
-                    if(!configData。sub_backend) { showSettings。value = true; return showToast("请先设置转换后端"， "error"); }
+                    if(!configData.sub_backend) { showSettings.value = true; return showToast("请先设置转换后端", "error"); }
                     if(!form.sub_url) return showToast("请输入订阅链接", "error")
                     showLoading('更新中...')
                     statusMsg.value = ""
@@ -771,47 +774,62 @@
                         if(!res.ok) { const d = await res.json(); throw new Error(d.detail); }
                         statusType.value = 'success'; statusMsg.value = "✅ 订阅更新成功"
                         await loadData(); showToast("订阅更新成功")
-                    } catch(e) { statusType。value = 'error'; statusMsg。value = "❌ " + e。message; showToast(e。message， "error") } finally { hideLoading() }
+                    } catch(e) { statusType.value = 'error'; statusMsg.value = "❌ " + e.message; showToast(e.message, "error") } finally { hideLoading() }
                 }
 
                 const restartContainers = async () => {
                     if(!configData。restart_containers) { showSettings。value = true; return showToast("请先配置容器名称"， "error"); }
                     showLoading('正在重启容器...')
                     try {
-                        const res = await fetch('/api/restart_containers'， { method: 'POST' })
-                        const data = await res。json()
+                        const res = await fetch('/api/restart_containers', { method: 'POST' })
+                        const data = await res.json()
                         if(!res。ok) throw new 错误(data。detail || "重启失败")
-                        showToast(data。msg)
+                        showToast(data.msg)
                     } catch(e) { showToast(e。message， "error") } finally { hideLoading() }
                 }
 
                 const saveSettings = async () => {
                     showLoading('保存...')
-                    try { await saveData(); showSettings.value = false; showToast('设置已保存'); }
+                    try { await saveData(); showSettings。value = false; showToast('设置已保存'); }
                     catch(e) { showToast("保存失败", "error"); } finally { hideLoading(); }
                 }
 
-                const openSettings = () => { showSettings。value = true }
-                const toggleTheme = () => { isDark.value = !isDark.value; document.documentElement.classList.toggle('dark', isDark.value) }
+                const openSettings = () => { showSettings.value = true }
+                const toggleTheme = () => {
+                    isDark。value = !isDark。value;
+                    document。documentElement。classList。toggle('dark'， isDark.value);
+                    localStorage。setItem('theme'， isDark。value ? 'dark' : 'light');
+                }
                 const toggleGroupEdit = () => { isGroupEditMode。value = !isGroupEditMode。value; selectedGroups。value = [] }
-                const isGroupSelected = (n) => selectedGroups.value.includes(n)
-                const toggleGroupSelection = (n) => { if(isGroupEditMode.value) isGroupSelected(n) ? selectedGroups.value.splice(selectedGroups.value.indexOf(n), 1) : selectedGroups.value.push(n) }
-                const toggleRuleEdit = () => { isRuleEditMode.value = !isRuleEditMode.value; selectedRules.value = [] }
+                const isGroupSelected = (n) => selectedGroups。value。includes(n)
+                const toggleGroupSelection = (n) => { if(isGroupEditMode。value) isGroupSelected(n) ? selectedGroups.value.splice(selectedGroups。value。indexOf(n)， 1) : selectedGroups.value.push(n) }
+                const toggleRuleEdit = () => { isRuleEditMode。value = !isRuleEditMode。value; selectedRules。value = [] }
                 const isRuleSelected = (r) => selectedRules。value。includes(r)
                 const toggleRuleSelection = (r) => { if(isRuleEditMode.value) isRuleSelected(r) ? selectedRules.value.splice(selectedRules.value.indexOf(r), 1) : selectedRules.value.push(r) }
                 const filteredRules = computed(() => {
                     if (!analysis。rules) return []
-                    const key = ruleSearch。value。toLowerCase()
+                    const key = ruleSearch.value.toLowerCase()
                     if (!key) return analysis.rules.slice(0, 100)
-                    return analysis.rules.filter(r => r.toLowerCase().includes(key)).slice(0, 100)
+                    return analysis。rules。filter(r => r。toLowerCase()。includes(key))。slice(0， 100)
                 })
 
-                onMounted(() => { document.documentElement.classList.add('dark'); loadData(); })
+                onMounted(() => {
+                    // 从localStorage读取主题偏好
+                    const savedTheme = localStorage。getItem('theme');
+                    if (savedTheme === 'light') {
+                        isDark.value = false;
+                        document.documentElement。classList。remove('dark');
+                    } else {
+                        isDark.value = true;
+                        document.documentElement.classList.add('dark');
+                    }
+                    loadData();
+                })
 
                 return { 
-                    isDark, toggleTheme， globalLoading， loadingText， showSettings， openSettings， currentTab， tabs，
-                    form, configData， analysis， statusMsg， statusType， icons， toast， showToast， confirmModal，
-                    groupInput, insertIcon, addNewGroup, isGroupEditMode, selectedGroups, toggleGroupEdit, isGroupSelected, toggleGroupSelection,
+                    isDark, toggleTheme, globalLoading, loadingText, showSettings, openSettings, currentTab, tabs,
+                    form, configData， analysis， statusMsg， statusType， icons， toast, showToast, confirmModal，
+                    groupInput, insertIcon， addNewGroup， isGroupEditMode， selectedGroups， toggleGroupEdit， isGroupSelected， toggleGroupSelection，
                     ruleInput, addNewRules， isRuleEditMode， selectedRules， toggleRuleEdit， isRuleSelected， toggleRuleSelection， ruleSearch, filteredRules，
                     initiateDelete, performDelete， saveSettings， downloadConfig， restoreConfig， restartContainers， applyHistory， deleteHistory，
                     backupOpts, restoreOpts， backupUrl， logs， fetchLogs， logContainer，

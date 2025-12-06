@@ -32,6 +32,26 @@
         /* 新增动画类 */
         .animate-fade-in { animation: fadeIn 0.3s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* 自定义滚动条样式 */
+        .slim-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .slim-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .slim-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 3px;
+        }
+        .slim-scrollbar::-webkit-scrollbar-thumb:hover {
+            background-color: #94a3b8;
+        }
+        .slim-scrollbar {
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 transparent;
+        }
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100 min-h-screen flex flex-col">
@@ -87,62 +107,98 @@
             </div>
 
             <div v-show="currentTab === 'home'" class="animate-fade-in flex flex-col gap-6">
-                
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 border border-gray-100 dark:border-gray-700 text-center relative overflow-hidden">
+
+                <!-- 统一的订阅管理卡片 -->
+                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 border border-gray-100 dark:border-gray-700 relative overflow-hidden">
                     <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-purple-600"></div>
-                    <div class="w-16 h-16 bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900/30 dark:to-purple-900/30 text-primary rounded-full flex items-center justify-center mx-auto mb-4 text-2xl shadow-inner">
-                        <i class="fas fa-exchange-alt"></i>
-                    </div>
-                    <h2 class="text-2xl font-bold mb-1">订阅转换</h2>
-                    <p class="text-sm text-gray-500 mb-6">上次更新: <span class="font-mono font-bold text-gray-700 dark:text-gray-300">{{ analysis.update_time || '从未' }}</span></p>
-                    <div class="max-w-xl mx-auto flex flex-col gap-3 relative z-10">
-                        <div class="relative">
-                            <i class="fas fa-link absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
-                            <input v-model="form.sub_url" type="text" placeholder="在此粘贴机场订阅链接..." 
-                                class="w-full pl-10 pr-4 py-4 rounded-xl bg-gray-50 dark:bg-gray-700 border-2 border-transparent focus:border-primary outline-none transition text-lg shadow-inner">
-                        </div>
-                        <button @click="downloadConfig" 
-                            class="w-full py-4 bg-green-600 hover:bg-green-700 text-white font-bold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2 rounded-xl text-lg">
-                            <span>立即更新订阅</span><i class="fas fa-bolt"></i>
+
+                    <!-- 头部区域 -->
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold">{{ isEditing ? '配置订阅' : (configData.user_info?.name || '我的订阅') }}</h2>
+                        <button v-if="!isEditing && configData.user_info?.total"
+                                @click="isEditing = true"
+                                class="px-4 py-2 bg-primary hover:bg-indigo-600 text-white rounded-lg font-medium transition flex items-center gap-2">
+                            <i class="fas fa-edit"></i> 更换订阅
                         </button>
                     </div>
-                </div>
 
-                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-100 dark:border-gray-700 relative overflow-hidden">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-lg font-bold flex items-center gap-2">
-                            <i class="fas fa-chart-pie text-blue-500"></i> 
-                            <span>流量使用情况</span>
-                            <component 
+                    <!-- 编辑模式：订阅转换 -->
+                    <div v-if="isEditing" class="text-center">
+                        <div class="w-16 h-16 bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900/30 dark:to-purple-900/30 text-primary rounded-full flex items-center justify-center mx-auto mb-4 text-2xl shadow-inner">
+                            <i class="fas fa-exchange-alt"></i>
+                        </div>
+                        <p class="text-sm text-gray-500 mb-6">上次更新: <span class="font-mono font-bold text-gray-700 dark:text-gray-300">{{ analysis.update_time || '从未' }}</span></p>
+                        <div class="max-w-xl mx-auto flex flex-col gap-3">
+                            <div class="relative">
+                                <i class="fas fa-link absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                                <input v-model="form.sub_url" type="text" placeholder="在此粘贴机场订阅链接..."
+                                    class="w-full pl-10 pr-4 py-4 rounded-xl bg-gray-50 dark:bg-gray-700 border-2 border-transparent focus:border-primary outline-none transition text-lg shadow-inner">
+                            </div>
+                            <button @click="downloadConfig"
+                                class="w-full py-4 bg-green-600 hover:bg-green-700 text-white font-bold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2 rounded-xl text-lg">
+                                <span>立即更新订阅</span><i class="fas fa-bolt"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 查看模式：流量使用情况 -->
+                    <div v-else-if="configData.user_info?.total" class="space-y-6">
+                        <!-- 机场名称和链接 -->
+                        <div class="flex items-center justify-center gap-2 mb-4">
+                            <component
                                 :is="configData.user_info?.web_url ? 'a' : 'span'"
                                 :href="configData.user_info?.web_url"
                                 :target="configData.user_info?.web_url ? '_blank' : ''"
-                                v-if="configData.user_info?.name && configData.user_info.name !== '未知订阅'" 
-                                :class="['text-xs font-normal px-2 py-0.5 rounded-full flex items-center gap-1 transition-colors border', 
+                                v-if="configData.user_info?.name && configData.user_info.name !== '未知订阅'"
+                                :class="['text-sm font-normal px-3 py-1 rounded-full flex items-center gap-1 transition-colors border',
                                          configData.user_info?.web_url ? 'bg-blue-600 text-white hover:bg-blue-700 border-transparent shadow-sm cursor-pointer' : 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300 border-blue-200 dark:border-blue-800']">
                                 <i v-if="configData.user_info?.web_url" class="fas fa-external-link-alt text-[10px]"></i>
                                 {{ configData.user_info.name }}
                             </component>
-                        </h3>
-                        <span class="text-xs text-gray-400">更新于: {{ configData.user_info?.update_time || '暂无数据' }}</span>
+                            <span class="text-xs text-gray-400">更新于: {{ configData.user_info?.update_time || '暂无数据' }}</span>
+                        </div>
+
+                        <!-- 进度条区域 -->
+                        <div class="space-y-2">
+                            <div class="flex justify-between text-sm font-medium">
+                                <span>已用 {{ Math.min(100, usagePercent).toFixed(1) }}%</span>
+                                <span>剩余 {{ formatBytes((configData.user_info?.total || 0) - (configData.user_info?.upload || 0) - (configData.user_info?.download || 0)) }}</span>
+                            </div>
+                            <div class="h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden shadow-inner">
+                                <div class="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full transition-all duration-1000 ease-out" :style="{ width: Math.min(100, usagePercent) + '%' }"></div>
+                            </div>
+                        </div>
+
+                        <!-- 数据网格 -->
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-xl border border-gray-100 dark:border-gray-600">
+                                <div class="text-xs text-gray-500 mb-1">上传</div>
+                                <div class="text-lg font-bold text-green-600">{{ formatBytes(configData.user_info?.upload || 0) }}</div>
+                            </div>
+                            <div class="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-xl border border-gray-100 dark:border-gray-600">
+                                <div class="text-xs text-gray-500 mb-1">下载</div>
+                                <div class="text-lg font-bold text-blue-600">{{ formatBytes(configData.user_info?.download || 0) }}</div>
+                            </div>
+                            <div class="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-xl border border-gray-100 dark:border-gray-600">
+                                <div class="text-xs text-gray-500 mb-1">总计</div>
+                                <div class="text-lg font-bold text-gray-800 dark:text-gray-100">{{ formatBytes(configData.user_info?.total || 0) }}</div>
+                            </div>
+                            <div class="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-xl border border-gray-100 dark:border-gray-600">
+                                <div class="text-xs text-gray-500 mb-1">过期时间</div>
+                                <div class="text-sm font-bold text-orange-600">{{ formatDate(configData.user_info?.expire || 0) }}</div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="flex flex-col gap-2">
-                        <div class="flex justify-between text-sm font-medium mb-1">
-                            <span>已用: {{ formatBytes((configData.user_info?.upload || 0) + (configData.user_info?.download || 0)) }}</span>
-                            <span>总计: {{ formatBytes(configData.user_info?.total || 0) }}</span>
+
+                    <!-- 无数据时的提示 -->
+                    <div v-else class="text-center py-8">
+                        <div class="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl text-gray-400">
+                            <i class="fas fa-chart-pie"></i>
                         </div>
-                        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4 overflow-hidden shadow-inner">
-                            <div class="bg-gradient-to-r from-blue-500 to-cyan-400 h-4 rounded-full transition-all duration-1000 ease-out" :style="{ width: usagePercent + '%' }"></div>
-                        </div>
-                        <div class="flex justify-between items-center mt-2 text-xs text-gray-500 dark:text-gray-400">
-                            <div class="flex gap-4">
-                                <span><i class="fas fa-arrow-up text-green-500"></i> 上传: {{ formatBytes(configData.user_info?.upload || 0) }}</span>
-                                <span><i class="fas fa-arrow-down text-blue-500"></i> 下载: {{ formatBytes(configData.user_info?.download || 0) }}</span>
-                            </div>
-                            <div>
-                                <i class="fas fa-hourglass-end"></i> 过期: {{ formatDate(configData.user_info?.expire || 0) }}
-                            </div>
-                        </div>
+                        <p class="text-gray-500 mb-4">暂无流量数据，请先配置订阅</p>
+                        <button @click="isEditing = true" class="px-6 py-3 bg-primary hover:bg-indigo-600 text-white rounded-lg font-medium transition">
+                            配置订阅
+                        </button>
                     </div>
                 </div>
 
@@ -289,7 +345,7 @@
                 <div class="flex justify-start items-center">
                     <h3 class="text-lg font-bold"><i class="fas fa-terminal text-primary"></i> 实时日志</h3>
                 </div>
-                <div class="flex-1 bg-black text-green-400 font-mono text-xs md:text-sm p-4 rounded-xl overflow-y-auto border border-gray-700 shadow-inner terminal-logs" ref="logContainer">
+                <div class="flex-1 bg-black text-green-400 font-mono text-xs md:text-sm p-4 rounded-xl overflow-y-auto border border-gray-700 shadow-inner terminal-logs slim-scrollbar" ref="logContainer">
                     <div v-if="logs.length === 0" class="text-gray-500 italic">暂无日志或正在加载...</div>
                     <div v-for="(line, idx) in logs" :key="idx" class="whitespace-pre-wrap break-all hover:bg-gray-900">{{ line }}</div>
                 </div>
@@ -369,7 +425,7 @@
                                 <span class="text-xs text-gray-400">点击列表项即可更新应用</span>
                             </div>
 
-                            <div v-if="configData.sub_history && configData.sub_history.length > 0" class="flex flex-col gap-3">
+                            <div v-if="configData.sub_history && configData.sub_history.length > 0" class="flex flex-col gap-3 max-h-96 overflow-y-auto slim-scrollbar">
                                 <div v-for="(item, idx) in configData.sub_history" :key="idx" 
                                      class="group relative bg-gray-50 dark:bg-gray-700/40 hover:bg-white dark:hover:bg-gray-700 border border-transparent hover:border-gray-200 dark:hover:border-gray-600 rounded-xl p-4 transition-all shadow-sm hover:shadow-md cursor-pointer"
                                      @click="applyHistory(item.url)">
@@ -496,6 +552,7 @@
                 const statusType = ref('success')
                 const toast = reactive({ show: false, msg: '', type: 'success' })
                 const confirmModal = reactive({ show: false, count: 0 })
+                const isEditing = ref(false)
                 
                 // 日志数据
                 const logs = ref([])
@@ -774,6 +831,9 @@
                         if(!res.ok) { const d = await res.json(); throw new Error(d.detail); }
                         statusType.value = 'success'; statusMsg.value = "✅ 订阅更新成功"
                         await loadData(); showToast("订阅更新成功")
+                        // 新增代码：请求成功后立即清空输入框并切换状态
+                        form.sub_url = '';
+                        isEditing.value = false;
                     } catch(e) { statusType.value = 'error'; statusMsg.value = "❌ " + e.message; showToast(e.message, "error") } finally { hideLoading() }
                 }
 
@@ -824,15 +884,22 @@
                         document.documentElement.classList.add('dark');
                     }
                     loadData();
+
+                    // 检查是否有流量数据，如果没有则自动设为编辑模式
+                    setTimeout(() => {
+                        if (!configData.user_info || !configData.user_info.total || configData.user_info.total === 0) {
+                            isEditing.value = true;
+                        }
+                    }, 500);
                 })
 
-                return { 
+                return {
                     isDark, toggleTheme, globalLoading, loadingText, showSettings, openSettings, currentTab, tabs,
                     form, configData, analysis, statusMsg, statusType, icons, toast, showToast, confirmModal,
                     groupInput, insertIcon, addNewGroup, isGroupEditMode, selectedGroups, toggleGroupEdit, isGroupSelected, toggleGroupSelection,
                     ruleInput, addNewRules, isRuleEditMode, selectedRules, toggleRuleEdit, isRuleSelected, toggleRuleSelection, ruleSearch, filteredRules,
                     initiateDelete, performDelete, saveSettings, downloadConfig, restoreConfig, restartContainers, applyHistory, deleteHistory,
-                    backupOpts, restoreOpts, backupUrl, logs, fetchLogs, logContainer,
+                    backupOpts, restoreOpts, backupUrl, logs, fetchLogs, logContainer, isEditing,
                     // [修改] 导出新的变量
                     formatBytes, formatDate, usagePercent, settingTab
                 }
@@ -840,4 +907,5 @@
         }).mount('#app')
     </script>
 </body>
+</html>
 </html>

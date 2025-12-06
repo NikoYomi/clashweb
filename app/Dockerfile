@@ -5,11 +5,12 @@ WORKDIR /app
 # --- 优化: 国际网络环境构建 ---
 # 1. 移除国内源设置，直接使用官方 PyPI 和 Debian 源 (在 GitHub Actions 环境下速度极快)
 # 2. 安装 wget 用于下载静态资源
+# 3. [修复] 安装 tzdata，确保定时任务调度器能识别时区
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends wget && \
+    apt-get install -y --no-install-recommends wget tzdata && \
     rm -rf /var/lib/apt/lists/*
 
-# 3. 安装依赖
+# 4. 安装依赖
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 

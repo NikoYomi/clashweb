@@ -119,11 +119,18 @@ def init_data():
     if not os.path.exists(OUTPUT_YAML) or os.path.isdir(OUTPUT_YAML):
         with open(OUTPUT_YAML, 'w') as f: f.write("")
 
-def refresh_scheduler():
+# 修改 refresh_scheduler 接收可选的 config_data 参数
+def refresh_scheduler(config_data: Optional[dict] = None):
     try:
-        with open(CONFIG_JSON, 'r') as f:
-            data = json.load(f)
-        
+        data = config_data
+        # 如果没有传入 data，才去读取文件 (用于启动时)
+        if data is None:
+            if os.path.exists(CONFIG_JSON):
+                with open(CONFIG_JSON, 'r') as f:
+                    data = json.load(f)
+            else:
+                data = {}
+
         job_id = 'auto_update_job'
         if scheduler.get_job(job_id):
             scheduler.remove_job(job_id)
@@ -131,11 +138,15 @@ def refresh_scheduler():
         if data.get('auto_update') and data.get('cron_expression'):
             cron_str = data['cron_expression']
             try:
+                # 使用 from_crontab 解析 5位 Cron 表达式 (分 时 日 月 周)
                 trigger = CronTrigger.from_crontab(cron_str, timezone=tz)
                 scheduler.add_job(scheduled_update_task, trigger, id=job_id, replace_existing=True)
-                logger.info(f"✅ 定时任务已设置: [{cron_str}]")
+
+                # 获取下一次运行时间用于日志验证
+                next_run = trigger.get_next_fire_time(None, datetime.now(tz))
+                logger.info(f"✅ 定时任务已设置: [{cron_str}] 下次运行: {next_run}")
             except Exception as e:
-                logger.error(f"Invalid cron expression: {e}")
+                logger.error(f"❌ Cron 表达式错误: {e}")
         else:
             logger.info("⛔️ 定时任务已关闭")
     except Exception as e:
@@ -490,10 +501,13 @@ async def get_data():
 async def save_data(data: ConfigModel):
     try:
         payload = data.dict(exclude_none=True)
+        # 1. 先写入文件
         async with aiofiles.open(CONFIG_JSON, 'w') as f:
             await f.write(json.dumps(payload, indent=2))
-        
-        refresh_scheduler()
+
+        # 2. 直接使用内存中的 payload 刷新调度器，避免 IO 竞争
+        refresh_scheduler(payload)
+
         return {"status": "success"}
     except Exception as e:
         logger.error(f"保存配置失败: {e}")
